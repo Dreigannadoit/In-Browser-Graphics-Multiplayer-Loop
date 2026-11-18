@@ -9,7 +9,6 @@ export const CONTROLS = {
   right: ['KeyD'],
   jump: ['Space'],
   slide: ['ControlLeft', 'ControlRight', 'KeyC'],
-  sprint: ['ShiftLeft', 'ShiftRight'],
   grapple: ['KeyE'],
   grappleMouseButton: 2, // right mouse
   debugToggle: ['F3', 'Backquote'],
@@ -51,52 +50,37 @@ export const DOUBLE_JUMP = {
 }
 
 export const MOVE = {
-  gravity: 26, // while rising
-  fallGravityMult: 1.45, // heavier on the way down → snappy, less floaty
-  apexGravityMult: 0.65, // slight hang near the top of a jump
-  apexSpeed: 2, // |vy| below this counts as "apex"
-  jumpCutGravityMult: 2.6, // extra gravity when jump is released early (variable jump height)
+  gravity: 28,
   maxFallSpeed: 50,
 
   // ground
-  walkSpeed: 7,
-  sprintSpeed: 11.5,
-  groundAccel: 70, // m/s² toward the wish direction
-  groundTurnFriction: 16, // 1/s — kills velocity that is NOT along the wish direction (crisp direction changes)
-  groundOverspeedFriction: 4, // 1/s — bleeds speed above the current max (e.g. after a slide) instead of snapping
-  groundFriction: 9, // 1/s (Quake-style, only used with no input)
+  groundMaxSpeed: 9,
+  groundAccel: 80, // m/s²
+  groundFriction: 9, // 1/s (Quake-style, scaled by max(speed, stopSpeed))
   stopSpeed: 3,
   groundProbeTolerance: 0.15, // feet within this of a floor → grounded
   groundProbeRange: 1.6, // how far below feet we look (also used as wall-run clearance)
   groundMaxUpVelocity: 0.5, // moving up faster than this can't be "grounded"
 
   // air
-  airMaxSpeed: 10,
-  airAccel: 42,
+  airMaxSpeed: 9,
+  airAccel: 26,
 
   // jumping
-  jumpSpeed: 9.5,
-  doubleJumpSpeed: 8.8,
-  doubleJumpRedirect: 0.5, // 0..1 blend of horizontal velocity toward input
+  jumpSpeed: 9.5, // ≈1.6 m apex
+  doubleJumpSpeed: 8.5,
+  doubleJumpRedirect: 0.6, // 0..1 blend of horizontal velocity toward input
   doubleJumpMinSpeed: 6,
-  doubleJumpDelay: 0.18, // can't double jump this soon after leaving the ground / first jump
-  doubleJumpGroundBuffer: 0.7, // falling & this close to the ground → the press is saved as a landing jump instead
-  coyoteTime: 0.12,
-  jumpBuffer: 0.14,
+  coyoteTime: 0.1,
+  jumpBuffer: 0.12,
 
   // floor slide
-  slideStartSpeed: 5.5,
-  slideEndSpeed: 3,
-  slideEntryBoost: 1.1,
-  slideCooldown: 0.5, // after a slide ends, can't start another (stops speed-farming)
+  slideStartSpeed: 6,
+  slideEndSpeed: 3.5,
+  slideEntryBoost: 1.12,
   slideMaxSpeed: 17,
-  slideFriction: 0.8, // 1/s at high speed — low on purpose
-  slideLowSpeedFriction: 5, // extra friction ramped in as speed drops → slide eases out
-  slideFrictionRampFrom: 8, // speed at which the ramp begins
-  slideTurnRate: 1.8, // rad/s the slide direction can bend
-  slideSlopeAccel: 1.0, // multiplier on gravity-along-slope (downhill speeds you up)
-
-  grappleMinHold: 0.05, // a tap shorter than one or two sim steps still registers
+  slideFriction: 0.9, // 1/s — low on purpose
+  slideSteer: 3,
 
   // wall run
   wallProbeDistance: 0.25, // beyond capsule radius
@@ -122,7 +106,7 @@ export const MOVE = {
 export const CAMERA = {
   baseFov: 90,
   fovBoost: 16,
-  fovStartSpeed: 8,
+  fovStartSpeed: 9,
   fovFullSpeed: 22,
   fovLerp: 6,
   wallRunTiltDeg: 7,
@@ -132,10 +116,6 @@ export const CAMERA = {
   landDipMax: 0.22,
   landDipRecover: 9,
   slideEyeDrop: 0.45,
-  strafeRollDeg: 1.6,
-  slideRollDeg: 2.5,
-  bobAmount: 0.035, // vertical eye bob while running
-  bobFreq: 0.62, // cycles per meter
 }
 
 export const GAMEPLAY = { maxHealth: 100, healthPickupAmount: 25 }

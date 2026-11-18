@@ -3,7 +3,6 @@
     "range": 45,
     "pullSpeed": 30,
     "pullAccel": 9,
-    "steerFactor": 0.7,
     "coneDeg": 20,
     "releaseDistance": 2.5,
     "maxDuration": 3,

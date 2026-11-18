@@ -2,7 +2,7 @@
 
 ## Install / run
 ```bash
-npm i three @react-three/fiber @react-three/rapier   # rapier >= 1.3 (needs useBeforePhysicsStep)
+npm i three @react-three/fiber @react-three/rapier @react-three/postprocessing postprocessing   # rapier >= 1.3 (needs useBeforePhysicsStep)
 mkdir -p public/maps && cp Demo.glb public/maps/
 # copy ./src over your project's src/ (or merge), keep main.jsx → <App/>
 npm run dev

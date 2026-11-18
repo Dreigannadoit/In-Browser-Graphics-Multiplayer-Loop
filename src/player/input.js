@@ -10,7 +10,7 @@ let el = null
 
 const has = (action) => CONTROLS[action].some((k) => keys.has(k))
 const isGameKey = (code) =>
-  ['forward', 'back', 'left', 'right', 'jump', 'slide', 'sprint', 'grapple'].some((a) => CONTROLS[a].includes(code))
+  ['forward', 'back', 'left', 'right', 'jump', 'slide', 'grapple'].some((a) => CONTROLS[a].includes(code))
 const isLocked = () => document.pointerLockElement === el
 
 function onKeyDown(e) {
@@ -85,7 +85,6 @@ export const input = {
       moveZ: (has('forward') ? 1 : 0) - (has('back') ? 1 : 0),
       jumpHeld: has('jump'),
       slideHeld: has('slide'),
-      sprintHeld: has('sprint'),
       grappleHeld: has('grapple') || mouseGrapple,
       jumpPressed: edges.jump,
       grapplePressed: edges.grapple,
