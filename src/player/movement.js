@@ -267,9 +267,19 @@ const RUN = {
     const n = c.wall.normal
     _tan.set(n.z, 0, -n.x) // cross(up, normal): direction along the wall
     let along = ps.vel.x * _tan.x + ps.vel.z * _tan.z
-    if (Math.abs(along) < 0.5) along = -Math.sin(ps.yaw) * _tan.x - Math.cos(ps.yaw) * _tan.z // fall back to look dir
-    if (along < 0) _tan.negate()
-    const base = ps.wallRunTime === 0 ? c.hSpeed : Math.abs(along)
+    // direction: the player's input decides (W = where the camera faces, S = back, A/D = sideways), so you can reverse mid-run.
+    // Only when input is neutral do we keep going the way we were.
+    const want = c.wishMag > 0.1 ? _wish.x * _tan.x + _wish.z * _tan.z : 0
+    let sign
+    if (Math.abs(want) > 0.25) sign = want
+    else if (Math.abs(along) > 0.5) sign = along
+    else sign = -Math.sin(ps.yaw) * _tan.x - Math.cos(ps.yaw) * _tan.z // fall back to look dir
+    if (sign < 0) {
+      _tan.negate()
+      along = -along
+    }
+    along = Math.max(0, along) // speed we carry in the (possibly new) direction
+    const base = ps.wallRunTime === 0 ? c.hSpeed : Math.max(along, c.hSpeed * 0.8)
     const speed = Math.max(base, MOVE.wallRunSpeed)
     ps.vel.x = _tan.x * speed - n.x * MOVE.wallRunStickSpeed
     ps.vel.z = _tan.z * speed - n.z * MOVE.wallRunStickSpeed
@@ -351,7 +361,7 @@ export function stepPlayer(ps, inp, dt, phys, level) {
   }
   if (wall) {
     c.intoWall = wishMag > 0.1 && -(_wish.x * wall.normal.x + _wish.z * wall.normal.z) > MOVE.wallIntoDot
-    c.runIntent = c.intoWall || inp.moveZ > 0 // holding toward the wall OR forward along it
+    c.runIntent = c.intoWall || inp.moveZ !== 0 || (ps.state === S.WALL_RUNNING && wishMag > 0.1) // toward the wall, along it, or (already running) any steering — so you can reverse
   }
 
   // 3. grapple fire / cancel
