@@ -1,13 +1,13 @@
 import { Suspense, useMemo } from 'react'
 import { Canvas, useLoader } from '@react-three/fiber'
 import { Physics } from '@react-three/rapier'
-import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { loadMap } from './map/loadMap'
 import { GameMap } from './map/GameMap'
 import { Player } from './player/Player'
 import { Hud } from './ui/Hud'
 import { CAMERA, PHYSICS } from './config/gameConfig'
+import "./App.css"
 
 const MAP_URL = '/maps/Demo.glb' // put the file in public/maps/
 
@@ -35,10 +35,6 @@ export default function App() {
             <Game url={MAP_URL} />
           </Physics>
         </Suspense>
-        {/* Only things brighter than 1.0 bloom (grapple points); the rest of the scene is unaffected. */}
-        <EffectComposer>
-          <Bloom intensity={1.2} luminanceThreshold={1} luminanceSmoothing={0.2} mipmapBlur />
-        </EffectComposer>
       </Canvas>
       <Hud />
     </>

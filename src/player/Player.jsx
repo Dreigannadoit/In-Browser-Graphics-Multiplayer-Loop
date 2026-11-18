@@ -133,8 +133,9 @@ export function Player({ map }) {
     const phys = physRef.current
     if (phys) {
       tmp.eye.set(renderPos.x, renderPos.y + PLAYER.eyeAboveCenter, renderPos.z)
-      const hit = findGrappleTarget(tmp.eye, lookDirection(ps, tmp.look), level.grapplePoints, phys)
+      const hit = findGrappleTarget(tmp.eye, lookDirection(ps, tmp.look), level.grapplePoints, phys, ps.grappleStatus)
       ps.aimedGrapple = hit ? hit.name : null
+      if (ps.state === 'grappling' && ps.grapple) ps.grappleStatus[ps.grapple.point.name] = 'target' // the point we're attached to stays green
     }
 
     // rope

@@ -21,6 +21,7 @@ const _look = new THREE.Vector3()
 const _dir = new THREE.Vector3()
 const _tan = new THREE.Vector3()
 const _target = new THREE.Vector3()
+const _steer = new THREE.Vector3()
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 /** Camera-relative horizontal wish direction (unit) written to out. Returns input magnitude 0..1. */
@@ -41,6 +42,26 @@ function accelerate(vel, dir, wishSpeed, accel, dt) {
   const a = Math.min(add, accel * dt)
   vel.x += dir.x * a
   vel.z += dir.z * a
+}
+
+/** Ground movement: friction only fights velocity that isn't going where you want, so top speed is really reached. */
+function groundMove(ps, c, dt) {
+  const vel = ps.vel
+  if (!c.wishMag) return groundFriction(vel, dt)
+  const maxSpeed = (ps.sprinting ? MOVE.sprintSpeed : MOVE.walkSpeed) * c.wishMag
+  const par = vel.x * _wish.x + vel.z * _wish.z
+  let px = _wish.x * par
+  let pz = _wish.z * par
+  let qx = vel.x - px // sideways / opposing part
+  let qz = vel.z - pz
+  const kq = Math.max(0, 1 - MOVE.groundTurnFriction * dt)
+  qx *= kq
+  qz *= kq
+  let npar = par
+  if (par < maxSpeed) npar = Math.min(maxSpeed, par + MOVE.groundAccel * dt * (par < 0 ? 1.6 : 1))
+  else npar = Math.max(maxSpeed, par - Math.max(par, MOVE.stopSpeed) * MOVE.groundOverspeedFriction * dt)
+  vel.x = _wish.x * npar + qx
+  vel.z = _wish.z * npar + qz
 }
 
 function groundFriction(vel, dt) {
@@ -65,6 +86,16 @@ function airControl(ps, c, dt) {
   }
 }
 
+/** Rising = base gravity, apex = lighter (hang), falling = heavier, released jump key = heavier (variable height). */
+function jumpGravityScale(ps, inp) {
+  const vy = ps.vel.y
+  if (vy > 0) {
+    if (ps.jumpCut && !inp.jumpHeld) return MOVE.jumpCutGravityMult
+    return Math.abs(vy) < MOVE.apexSpeed ? MOVE.apexGravityMult : 1
+  }
+  return Math.abs(vy) < MOVE.apexSpeed ? MOVE.apexGravityMult : MOVE.fallGravityMult
+}
+
 function applyGravity(ps, scale, dt) {
   ps.vel.y = Math.max(ps.vel.y - MOVE.gravity * scale * dt, -MOVE.maxFallSpeed)
 }
@@ -72,6 +103,8 @@ function applyGravity(ps, scale, dt) {
 // ── jumping ──────────────────────────────────────────────────────────────────
 function groundJump(ps, c) {
   ps.vel.y = MOVE.jumpSpeed // normal jump: does NOT touch canDoubleJump
+  ps.jumpCut = true
+  ps.jumpedAt = ps.time
   if (c.grounded) onLeaveGround(ps)
   ps.grounded = false
   c.grounded = false
@@ -81,13 +114,22 @@ function groundJump(ps, c) {
 
 function doubleJump(ps, c) {
   consumeDoubleJump(ps) // sets canDoubleJump = false immediately
-  ps.vel.y = MOVE.doubleJumpSpeed
+  ps.vel.y = Math.max(MOVE.doubleJumpSpeed, ps.vel.y + MOVE.doubleJumpSpeed * 0.5) // always a clean lift, even from a fast fall
+  ps.jumpCut = true
+  ps.jumpedAt = ps.time
   if (c.wishMag > 0.1) {
+    // rotate/blend the horizontal velocity toward input but never lose speed
     const target = Math.max(c.hSpeed, MOVE.doubleJumpMinSpeed)
     ps.vel.x += (_wish.x * target - ps.vel.x) * MOVE.doubleJumpRedirect
     ps.vel.z += (_wish.z * target - ps.vel.z) * MOVE.doubleJumpRedirect
+    const after = Math.hypot(ps.vel.x, ps.vel.z)
+    if (after > 1e-3 && after < c.hSpeed) {
+      ps.vel.x *= c.hSpeed / after
+      ps.vel.z *= c.hSpeed / after
+    }
   }
   ps.jumpBuffer = 0
+  c.doubleJumped = true
 }
 
 function wallJump(ps, c) {
@@ -96,6 +138,7 @@ function wallJump(ps, c) {
   ps.vel.x = ps.vel.x * MOVE.wallJumpKeep + n.x * MOVE.wallJumpAway
   ps.vel.z = ps.vel.z * MOVE.wallJumpKeep + n.z * MOVE.wallJumpAway
   ps.vel.y = MOVE.wallJumpUp
+  ps.jumpCut = false
   ps.wallLockUntil = ps.time + MOVE.wallLockTime
   ps.wallRunExhausted = false
   ps.jumpBuffer = 0
@@ -110,7 +153,11 @@ function handleJump(ps, c, inp) {
   }
   if (ps.jumpBuffer > 0 && (c.grounded || ps.coyote > 0)) return groundJump(ps, c)
   // double jump needs a fresh press (a buffered press must not silently burn it)
-  if (inp.jumpPressed && !c.grounded && ps.canDoubleJump) doubleJump(ps, c)
+  if (!inp.jumpPressed || c.grounded || !ps.canDoubleJump) return
+  if (ps.time - ps.jumpedAt < MOVE.doubleJumpDelay) return // accidental double-tap right after takeoff
+  // about to land? keep the press buffered so it becomes a normal jump on touchdown instead of burning the double jump
+  if (ps.vel.y <= 0 && c.ground.hit && c.ground.kind === 'floor' && c.ground.gap < MOVE.doubleJumpGroundBuffer) return
+  doubleJump(ps, c)
 }
 
 // ── THE state machine: all transitions are decided here ──────────────────────
@@ -130,7 +177,7 @@ function resolveState(ps, c, inp) {
   if (c.grappleStart) return S.GRAPPLING
 
   if (c.grounded) {
-    const keep = s === S.SLIDING ? c.hSpeed > MOVE.slideEndSpeed : c.hSpeed >= MOVE.slideStartSpeed
+    const keep = s === S.SLIDING ? c.hSpeed > MOVE.slideEndSpeed : c.hSpeed >= MOVE.slideStartSpeed && ps.time >= ps.slideCooldownUntil
     return inp.slideHeld && keep ? S.SLIDING : S.GROUNDED
   }
 
@@ -160,6 +207,9 @@ const ENTER = {
   },
 }
 const EXIT = {
+  [S.SLIDING]: (ps) => {
+    ps.slideCooldownUntil = ps.time + MOVE.slideCooldown
+  },
   [S.GRAPPLING]: (ps) => {
     ps.grapple = null // velocity is untouched → momentum carries out of the pull
     ps.wallRunExhausted = false
@@ -170,26 +220,45 @@ const EXIT = {
 // ── per-state velocity updates ───────────────────────────────────────────────
 const RUN = {
   [S.GROUNDED]: (ps, c, dt) => {
-    groundFriction(ps.vel, dt)
-    if (c.wishMag) accelerate(ps.vel, _wish, MOVE.groundMaxSpeed * c.wishMag, MOVE.groundAccel, dt)
+    groundMove(ps, c, dt)
     ps.vel.y = 0
   },
 
-  [S.AIRBORNE]: (ps, c, dt) => {
-    applyGravity(ps, 1, dt)
+  [S.AIRBORNE]: (ps, c, dt, inp) => {
+    applyGravity(ps, jumpGravityScale(ps, inp), dt)
     airControl(ps, c, dt)
   },
 
   [S.SLIDING]: (ps, c, dt) => {
-    const k = Math.max(0, 1 - MOVE.slideFriction * dt)
+    // friction: low at speed, ramps up as the slide runs out so it eases to a stop
+    const rampT = Math.min(1, Math.max(0, (MOVE.slideFrictionRampFrom - c.hSpeed) / (MOVE.slideFrictionRampFrom - MOVE.slideEndSpeed)))
+    const k = Math.max(0, 1 - (MOVE.slideFriction + rampT * MOVE.slideLowSpeedFriction) * dt)
     ps.vel.x *= k
     ps.vel.z *= k
-    const sp = Math.hypot(ps.vel.x, ps.vel.z)
+
+    // downhill speeds you up, uphill slows you down
+    const n = c.ground.normal
+    if (c.ground.hit && n.y < 0.999) {
+      ps.vel.x += n.x * n.y * MOVE.gravity * MOVE.slideSlopeAccel * dt
+      ps.vel.z += n.z * n.y * MOVE.gravity * MOVE.slideSlopeAccel * dt
+    }
+    let sp = Math.hypot(ps.vel.x, ps.vel.z)
+    if (sp > MOVE.slideMaxSpeed) {
+      ps.vel.x *= MOVE.slideMaxSpeed / sp
+      ps.vel.z *= MOVE.slideMaxSpeed / sp
+      sp = MOVE.slideMaxSpeed
+    }
+
+    // steer: rotate the heading toward the input side at a capped turn rate (speed unchanged, no flips)
     if (c.wishMag && sp > 1e-3) {
-      // steer: bend the velocity direction toward input, speed unchanged
-      _dir.set(ps.vel.x / sp + _wish.x * MOVE.slideSteer * dt, 0, ps.vel.z / sp + _wish.z * MOVE.slideSteer * dt).normalize()
-      ps.vel.x = _dir.x * sp
-      ps.vel.z = _dir.z * sp
+      const hx = ps.vel.x / sp
+      const hz = ps.vel.z / sp
+      const side = hx * _wish.z - hz * _wish.x // sin(angle from heading to wish), + = wish is to the left of heading in xz
+      const ang = Math.max(-1, Math.min(1, side * 2)) * MOVE.slideTurnRate * c.wishMag * dt
+      const cs = Math.cos(ang)
+      const sn = Math.sin(ang)
+      ps.vel.x = (hx * cs - hz * sn) * sp
+      ps.vel.z = (hx * sn + hz * cs) * sp
     }
     ps.vel.y = 0
   },
@@ -198,9 +267,19 @@ const RUN = {
     const n = c.wall.normal
     _tan.set(n.z, 0, -n.x) // cross(up, normal): direction along the wall
     let along = ps.vel.x * _tan.x + ps.vel.z * _tan.z
-    if (Math.abs(along) < 0.5) along = -Math.sin(ps.yaw) * _tan.x - Math.cos(ps.yaw) * _tan.z // fall back to look dir
-    if (along < 0) _tan.negate()
-    const base = ps.wallRunTime === 0 ? c.hSpeed : Math.abs(along)
+    // direction: the player's input decides (W = where the camera faces, S = back, A/D = sideways), so you can reverse mid-run.
+    // Only when input is neutral do we keep going the way we were.
+    const want = c.wishMag > 0.1 ? _wish.x * _tan.x + _wish.z * _tan.z : 0
+    let sign
+    if (Math.abs(want) > 0.25) sign = want
+    else if (Math.abs(along) > 0.5) sign = along
+    else sign = -Math.sin(ps.yaw) * _tan.x - Math.cos(ps.yaw) * _tan.z // fall back to look dir
+    if (sign < 0) {
+      _tan.negate()
+      along = -along
+    }
+    along = Math.max(0, along) // speed we carry in the (possibly new) direction
+    const base = ps.wallRunTime === 0 ? c.hSpeed : Math.max(along, c.hSpeed * 0.8)
     const speed = Math.max(base, MOVE.wallRunSpeed)
     ps.vel.x = _tan.x * speed - n.x * MOVE.wallRunStickSpeed
     ps.vel.z = _tan.z * speed - n.z * MOVE.wallRunStickSpeed
@@ -217,9 +296,21 @@ const RUN = {
     airControl(ps, c, dt)
   },
 
-  [S.GRAPPLING]: (ps, c, dt) => {
+  [S.GRAPPLING]: (ps, c, dt, inp) => {
     const s = ps.grapple.settings
     _target.copy(c.grappleDir).multiplyScalar(s.pullSpeed)
+    // steering: input pushes the pull target sideways (perpendicular to the rope) → you curve left/right/up/down
+    // while still being reeled in (pursuit curve), and keep that curved momentum on release
+    if (inp.moveX !== 0 || inp.moveZ !== 0) {
+      _look.set(Math.cos(ps.yaw), 0, -Math.sin(ps.yaw)) // camera right
+      _tan.set(-Math.sin(ps.yaw), 0, -Math.cos(ps.yaw)) // camera forward (horizontal)
+      _steer.set(0, 0, 0).addScaledVector(_look, inp.moveX).addScaledVector(_tan, inp.moveZ * 0.5)
+      _steer.addScaledVector(c.grappleDir, -_steer.dot(c.grappleDir)) // remove the part along the rope
+      if (_steer.lengthSq() > 1e-4) {
+        _steer.normalize().multiplyScalar(s.pullSpeed * (s.steerFactor ?? 0.7) * Math.min(1, Math.hypot(inp.moveX, inp.moveZ)))
+        _target.add(_steer)
+      }
+    }
     ps.vel.lerp(_target, Math.min(1, s.pullAccel * dt)) // blend from current velocity → momentum is kept
   },
 }
@@ -240,15 +331,21 @@ export function stepPlayer(ps, inp, dt, phys, level) {
   const grounded =
     ground.hit && ground.kind === 'floor' && ground.gap <= MOVE.groundProbeTolerance && ps.vel.y <= MOVE.groundMaxUpVelocity
 
+  // sprint: hold while moving forward on the ground; momentum carries it through jumps (it only affects ground speed)
+  if (grounded) ps.sprinting = inp.sprintHeld && inp.moveZ > 0 && ps.state !== S.SLIDING
+  else if (!inp.sprintHeld) ps.sprinting = false
+
   // 2. floor-contact events (landing / takeoff)
   if (grounded && !ps.grounded) {
     ps.landImpact = Math.max(0, -ps.vel.y)
+    ps.jumpCut = false
     ps.vel.y = 0
     ps.wallRunExhausted = false
     onFloorContactStart(ps, { name: ground.name, normal: ground.normal }) // → double-jump reset rule
   } else if (!grounded && ps.grounded) {
     onLeaveGround(ps)
     ps.coyote = MOVE.coyoteTime
+    if (ps.time - ps.jumpedAt > 0.05) ps.jumpedAt = ps.time // walked off a ledge: start the double-jump delay now
   }
   ps.grounded = grounded
   if (grounded) ps.groundObjectName = ground.name
@@ -264,7 +361,7 @@ export function stepPlayer(ps, inp, dt, phys, level) {
   }
   if (wall) {
     c.intoWall = wishMag > 0.1 && -(_wish.x * wall.normal.x + _wish.z * wall.normal.z) > MOVE.wallIntoDot
-    c.runIntent = c.intoWall || inp.moveZ > 0 // holding toward the wall OR forward along it
+    c.runIntent = c.intoWall || inp.moveZ !== 0 || (ps.state === S.WALL_RUNNING && wishMag > 0.1) // toward the wall, along it, or (already running) any steering — so you can reverse
   }
 
   // 3. grapple fire / cancel
@@ -287,7 +384,7 @@ export function stepPlayer(ps, inp, dt, phys, level) {
         dist < ps.grapple.settings.releaseDistance ||
         ps.grapple.time > ps.grapple.settings.maxDuration ||
         inp.jumpPressed ||
-        inp.grapplePressed
+        (!inp.grappleHeld && ps.grapple.time > MOVE.grappleMinHold) // hold-to-grapple: letting go releases immediately
       if (inp.jumpPressed) ps.jumpBuffer = 0 // the jump press only cancels the pull
     }
   }
@@ -300,7 +397,7 @@ export function stepPlayer(ps, inp, dt, phys, level) {
     ps.state = next
     ENTER[next]?.(ps, c)
   }
-  RUN[ps.state](ps, c, dt)
+  RUN[ps.state](ps, c, dt, inp)
 
   // 5. move through the world (kinematic character controller resolves collisions)
   const dx = ps.vel.x * dt

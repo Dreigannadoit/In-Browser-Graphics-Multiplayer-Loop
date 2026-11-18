@@ -33,10 +33,15 @@ export function createPlayerState() {
     wallRunTime: 0,
     wallRunExhausted: false,
     wallLockUntil: 0,
+    sprinting: false,
+    slideCooldownUntil: 0,
+    jumpedAt: -1, // time of last takeoff / jump (double-jump delay)
+    jumpCut: false, // true while a rising jump may be shortened by releasing the key
 
     // grapple
     grapple: null, // { point, settings, time }
-    aimedGrapple: null, // name of the point under the crosshair (HUD)
+    aimedGrapple: null, // name of the point that would fire right now (HUD)
+    grappleStatus: {}, // point name → 'target' | 'near' | 'far' (HUD / point colors)
 
     // one-shot for the camera
     landImpact: 0,
@@ -82,6 +87,9 @@ export function respawnPlayer(ps, point) {
   ps.wallRunExhausted = false
   ps.jumpBuffer = 0
   ps.coyote = 0
+  ps.sprinting = false
+  ps.jumpCut = false
+  ps.slideCooldownUntil = 0
   resetDoubleJump(ps, 'respawn')
 }
 

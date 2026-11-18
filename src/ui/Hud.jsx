@@ -26,11 +26,11 @@ function Crosshair() {
     loop()
     return () => cancelAnimationFrame(id)
   }, [])
-  const color = aimed ? '#4fe3ff' : 'rgba(255,255,255,0.85)'
+  const color = aimed ? '#00ff66' : 'rgba(255,255,255,0.85)'
   const size = aimed ? 18 : 10
   return (
     <div style={{ ...overlay, left: '50%', top: '50%', width: size, height: size, transform: 'translate(-50%,-50%)',
-      border: `2px solid ${color}`, borderRadius: '50%', boxShadow: aimed ? '0 0 10px #4fe3ff' : 'none', transition: 'all 80ms' }} />
+      border: `2px solid ${color}`, borderRadius: '50%', boxShadow: aimed ? '0 0 10px #00ff66' : 'none', transition: 'all 80ms' }} />
   )
 }
 
