@@ -1,0 +1,20 @@
+{
+  "defaults": {
+    "range": 45,
+    "pullSpeed": 30,
+    "pullAccel": 9,
+    "coneDeg": 20,
+    "releaseDistance": 2.5,
+    "maxDuration": 3,
+    "requireLineOfSight": true,
+    "losTolerance": 1.0
+  },
+  "points": {
+    "Grapple_01": {},
+    "Grapple_02": { "pullSpeed": 34 },
+    "Grapple_03": {},
+    "Grapple_04": { "range": 30 },
+    "Grapple_05": { "range": 60, "pullSpeed": 38 },
+    "Grapple_06": { "range": 60, "pullSpeed": 38, "coneDeg": 25 }
+  }
+}
