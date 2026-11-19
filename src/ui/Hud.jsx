@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useGame } from '../game/store'
 import { player } from '../player/state'
+import { DOUBLE_JUMP, CONTROLS } from '../config/gameConfig'
+import doubleJumpIcon from '../assets/double-jump.png'
 
 const overlay = { position: 'fixed', pointerEvents: 'none', fontFamily: 'ui-monospace, Menlo, monospace', color: '#fff' }
 
@@ -9,6 +11,7 @@ export function Hud() {
     <>
       <Crosshair />
       <Stats />
+      <DoubleJumpCharges />
       <DebugHud />
       <LockPrompt />
     </>
@@ -44,6 +47,78 @@ function Stats() {
   )
 }
 
+// Bottom-right double-jump ability, styled after a hero-shooter ability slot (vertical stack):
+//   charge-count badge → ability icon → bracketed recharge bar → keybind cap.
+// The badge shows charges left; the bar fills as the NEXT charge recharges (full + bright at max charges).
+// The icon dims while you can't air-jump right now (already used this airtime, or 0 charges).
+// Swap `src/assets/double-jump.png` for final art — it's used as a mask, so only its silhouette matters (it renders white).
+const SLOT = { accent: '#7ea6ff', accentDim: 'rgba(126,166,255,0.28)', danger: '#ff6b6b', ink: '#12121c', paper: '#ecebf3' }
+
+function keyLabel(code) {
+  if (code === 'Space') return 'SPACE'
+  return code.replace(/^Key/, '').replace(/^Digit/, '').toUpperCase()
+}
+
+function DoubleJumpCharges() {
+  const { maxCharges, rechargeSeconds } = DOUBLE_JUMP
+  const [snap, setSnap] = useState({ charges: maxCharges, progress: 0, secs: 0, ready: true })
+  useEffect(() => {
+    let id
+    const loop = () => {
+      const charges = player.djCharges
+      const full = charges >= maxCharges
+      const progress = full ? 1 : Math.round((player.djRecharge / rechargeSeconds) * 100) / 100 // 1% steps → a few re-renders per second
+      const secs = full ? 0 : Math.ceil(rechargeSeconds - player.djRecharge)
+      const ready = player.canDoubleJump && charges > 0
+      setSnap((prev) =>
+        prev.charges === charges && prev.progress === progress && prev.secs === secs && prev.ready === ready ? prev : { charges, progress, secs, ready },
+      )
+      id = requestAnimationFrame(loop)
+    }
+    loop()
+    return () => cancelAnimationFrame(id)
+  }, [maxCharges, rechargeSeconds])
+
+  const { charges, progress, secs, ready } = snap
+  const empty = charges === 0
+  const recharging = charges < maxCharges
+  const iconMask = `url(${doubleJumpIcon}) center / contain no-repeat`
+
+  return (
+    <div style={{ ...overlay, right: 24, bottom: 24, width: 92, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '10px 8px 8px',
+      borderRadius: 8, background: 'linear-gradient(180deg, rgba(14,16,32,0.72), rgba(14,16,32,0.45))', boxShadow: '0 2px 10px rgba(0,0,0,0.45)' }}>
+      {/* charge badge */}
+      <div style={{ width: 28, height: 28, borderRadius: '50%', background: empty ? '#3a2a30' : SLOT.paper, color: empty ? SLOT.danger : SLOT.ink,
+        display: 'grid', placeItems: 'center', fontFamily: 'system-ui, sans-serif', fontWeight: 800, fontSize: 17, lineHeight: 1,
+        boxShadow: `0 0 0 2px rgba(255,255,255,0.22), 0 0 0 4px rgba(10,10,20,0.6)`, transition: 'background 120ms, color 120ms' }}>
+        {charges}
+      </div>
+
+      {/* ability icon (white silhouette) */}
+      <div style={{ position: 'relative', width: 48, height: 40, marginTop: 4 }}>
+        <div style={{ position: 'absolute', inset: 0, background: '#fff', WebkitMask: iconMask, mask: iconMask,
+          opacity: ready ? 1 : 0.35, filter: ready ? `drop-shadow(0 0 6px ${SLOT.accent})` : 'none', transition: 'opacity 120ms' }} />
+      </div>
+
+      {/* bracketed recharge bar */}
+      <div style={{ position: 'relative', width: '100%', height: 7, boxSizing: 'border-box', borderLeft: `2px solid ${SLOT.accent}`, borderRight: `2px solid ${SLOT.accent}`,
+        borderBottom: `2px solid ${SLOT.accentDim}`, borderRadius: '0 0 2px 2px', opacity: recharging ? 1 : 0.9 }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: -2, height: 2, background: SLOT.accent, transformOrigin: 'left',
+          transform: `scaleX(${progress})`, boxShadow: `0 0 6px ${SLOT.accent}` }} />
+      </div>
+
+      {/* keybind cap + recharge countdown */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+        <div style={{ padding: '2px 6px', borderRadius: 4, background: SLOT.paper, color: SLOT.ink, fontFamily: 'system-ui, sans-serif', fontWeight: 800,
+          fontSize: 10, letterSpacing: 0.5, boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.25)' }}>
+          {keyLabel(CONTROLS.jump[0])}
+        </div>
+        {recharging && <span style={{ fontSize: 11, fontWeight: 700, color: empty ? SLOT.danger : '#fff', textShadow: '0 1px 2px #000' }}>{secs}s</span>}
+      </div>
+    </div>
+  )
+}
+
 // Debug overlay: delete this component (and its line in <Hud/>) to remove it. F3 / ` toggles it.
 function DebugHud() {
   const visible = useGame((s) => s.debug)
@@ -57,7 +132,9 @@ function DebugHud() {
   const rows = [
     ['state', p.state],
     ['speed', `${p.speed.toFixed(1)} m/s`],
-    ['double jump', p.canDoubleJump ? 'AVAILABLE' : 'used'],
+    // needs BOTH: the per-airtime allowance (resets on landing / wall run) AND at least one consumable charge
+    ['double jump', p.djCharges < 1 ? 'NO CHARGES' : p.canDoubleJump ? 'AVAILABLE' : 'used (airtime)'],
+    ['dj charges', `${p.djCharges}/${DOUBLE_JUMP.maxCharges}`],
     ['surface', `${p.surfaceType}${p.surfaceName ? ` (${p.surfaceName})` : ''}`],
     ['last ground obj', p.lastGroundObjectName ?? '—'],
   ]

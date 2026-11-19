@@ -17,7 +17,9 @@ export function createPlayerState() {
     time: 0,
 
     // double jump (kept here so any event can reset it)
-    canDoubleJump: true,
+    canDoubleJump: true, // per-airtime allowance (landing / wall-run resets it) ...
+    djCharges: DOUBLE_JUMP.maxCharges, // ... and this is the consumable pool behind it
+    djRecharge: 0, // seconds accumulated toward the next charge
     doubleJumpResetReason: 'init',
     groundObjectName: null,
     lastGroundObjectName: null, // object we last took off from
@@ -58,6 +60,25 @@ export function resetDoubleJump(ps, reason = 'manual') {
 }
 export function consumeDoubleJump(ps) {
   ps.canDoubleJump = false
+  ps.djCharges = Math.max(0, ps.djCharges - 1) // from full this also starts the recharge timer at 0
+}
+/** Spend one charge WITHOUT touching the per-airtime allowance (used by wall jumps). */
+export function spendDoubleJumpCharge(ps) {
+  ps.djCharges = Math.max(0, ps.djCharges - 1)
+}
+/** Advance the recharge timer by one fixed step: +1 charge every rechargeSeconds while below max. */
+export function tickDoubleJumpCharges(ps, dt) {
+  const { maxCharges, rechargeSeconds } = DOUBLE_JUMP
+  if (ps.djCharges >= maxCharges) {
+    ps.djCharges = maxCharges
+    ps.djRecharge = 0
+    return
+  }
+  ps.djRecharge += dt
+  if (ps.djRecharge >= rechargeSeconds) {
+    ps.djCharges += 1
+    ps.djRecharge = ps.djCharges >= maxCharges ? 0 : ps.djRecharge - rechargeSeconds
+  }
 }
 function landingQualifies(ps, surface) {
   if (DOUBLE_JUMP.resetMode === 'differentObject') return surface.name !== ps.lastGroundObjectName

@@ -2,7 +2,7 @@
 // One call to stepPlayer() = one fixed step. All state transitions are in resolveState().
 import * as THREE from 'three'
 import { MOVE, PLAYER, DOUBLE_JUMP } from '../config/gameConfig'
-import { consumeDoubleJump, resetDoubleJump, onFloorContactStart, onLeaveGround, lookDirection } from './state'
+import { consumeDoubleJump, spendDoubleJumpCharge, tickDoubleJumpCharges, resetDoubleJump, onFloorContactStart, onLeaveGround, lookDirection } from './state'
 import { findGrappleTarget } from './grapple'
 
 export const STATES = Object.freeze({
@@ -135,6 +135,7 @@ function doubleJump(ps, c) {
 function wallJump(ps, c) {
   const n = (c.wall ?? ps.lastWall)?.normal
   if (!n) return
+  if (DOUBLE_JUMP.wallJumpCostsCharge) spendDoubleJumpCharge(ps) // caller guarantees a charge is available
   ps.vel.x = ps.vel.x * MOVE.wallJumpKeep + n.x * MOVE.wallJumpAway
   ps.vel.z = ps.vel.z * MOVE.wallJumpKeep + n.z * MOVE.wallJumpAway
   ps.vel.y = MOVE.wallJumpUp
@@ -148,12 +149,14 @@ function wallJump(ps, c) {
 function handleJump(ps, c, inp) {
   const s = ps.state
   if (s === S.WALL_RUNNING || s === S.WALL_SLIDING) {
-    if (inp.jumpPressed || ps.jumpBuffer > 0) wallJump(ps, c)
+    if (!(inp.jumpPressed || ps.jumpBuffer > 0)) return
+    if (DOUBLE_JUMP.wallJumpCostsCharge && ps.djCharges < 1) return // out of charges → no wall jump either
+    wallJump(ps, c)
     return
   }
   if (ps.jumpBuffer > 0 && (c.grounded || ps.coyote > 0)) return groundJump(ps, c)
   // double jump needs a fresh press (a buffered press must not silently burn it)
-  if (!inp.jumpPressed || c.grounded || !ps.canDoubleJump) return
+  if (!inp.jumpPressed || c.grounded || !ps.canDoubleJump || ps.djCharges < 1) return // no charge → no double jump
   if (ps.time - ps.jumpedAt < MOVE.doubleJumpDelay) return // accidental double-tap right after takeoff
   // about to land? keep the press buffered so it becomes a normal jump on touchdown instead of burning the double jump
   if (ps.vel.y <= 0 && c.ground.hit && c.ground.kind === 'floor' && c.ground.gap < MOVE.doubleJumpGroundBuffer) return
@@ -318,6 +321,7 @@ const RUN = {
 // ── the step ─────────────────────────────────────────────────────────────────
 export function stepPlayer(ps, inp, dt, phys, level) {
   ps.time += dt
+  tickDoubleJumpCharges(ps, dt)
   ps.prevPos.copy(ps.pos)
   ps.jumpBuffer = inp.jumpPressed ? MOVE.jumpBuffer : Math.max(0, ps.jumpBuffer - dt)
   ps.coyote = Math.max(0, ps.coyote - dt)

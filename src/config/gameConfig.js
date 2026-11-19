@@ -47,7 +47,12 @@ export const DOUBLE_JUMP = {
   resetMode: 'anyFloor',
   resetOnGrapple: false, // hooks for later; flip to true to restore on grapple release
   resetOnWallJump: false,
+  wallJumpCostsCharge: true, // a wall jump spends one charge and is blocked at 0 charges (doesn't touch the per-airtime allowance)
   resetOnWallRun: true, // restore the double jump when a wall run starts
+  // Consumable charges: every double jump costs one charge, regardless of the reset rules above (those only decide WHEN you may
+  // double jump; the charge decides IF you can). Charges refill one at a time. Respawning does not refill them.
+  maxCharges: 7,
+  rechargeSeconds: 1.5, // time to regain ONE charge (only ticks while below max)
 }
 
 export const MOVE = {
