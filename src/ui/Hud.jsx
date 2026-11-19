@@ -86,7 +86,7 @@ function DoubleJumpCharges() {
 
   return (
     <div style={{ ...overlay, right: 24, bottom: 24, width: 92, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '10px 8px 8px',
-      borderRadius: 8, background: 'linear-gradient(180deg, rgba(14,16,32,0.72), rgba(14,16,32,0.45))', boxShadow: '0 2px 10px rgba(0,0,0,0.45)' }}>
+      borderRadius: 8, background: 'linear-gradient(180deg, rgba(14,16,32,0.02), rgba(14,16,32,0.05))', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
       {/* charge badge */}
       <div style={{ width: 28, height: 28, borderRadius: '50%', background: empty ? '#3a2a30' : SLOT.paper, color: empty ? SLOT.danger : SLOT.ink,
         display: 'grid', placeItems: 'center', fontFamily: 'system-ui, sans-serif', fontWeight: 800, fontSize: 17, lineHeight: 1,
