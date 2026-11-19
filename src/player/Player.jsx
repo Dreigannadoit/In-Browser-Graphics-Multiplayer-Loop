@@ -124,11 +124,16 @@ export function Player({ map }) {
 
     if (bodyRef.current) bodyRef.current.position.copy(renderPos) // shadow caster follows the smoothed position
 
-    const { eyeOffsetY } = updateCameraFx(fx, ps, dt)
-    camera.position.set(renderPos.x, renderPos.y + PLAYER.eyeAboveCenter + eyeOffsetY, renderPos.z)
-    camera.rotation.set(ps.pitch, ps.yaw, fx.roll)
-    if (Math.abs(camera.fov - fx.fov) > 0.01) {
-      camera.fov = fx.fov
+    const cam = updateCameraFx(fx, ps, dt)
+    // eye sways along camera-right (right = (cos yaw, 0, -sin yaw)); view pitch/roll include kicks + shake, ps.pitch stays pure aim
+    camera.position.set(
+      renderPos.x + Math.cos(ps.yaw) * cam.eyeOffsetRight,
+      renderPos.y + PLAYER.eyeAboveCenter + cam.eyeOffsetY,
+      renderPos.z - Math.sin(ps.yaw) * cam.eyeOffsetRight,
+    )
+    camera.rotation.set(THREE.MathUtils.clamp(ps.pitch + cam.pitch, -maxPitch, maxPitch), ps.yaw, cam.roll)
+    if (Math.abs(camera.fov - cam.fov) > 0.01) {
+      camera.fov = cam.fov
       camera.updateProjectionMatrix()
     }
 

@@ -86,8 +86,12 @@ export const MOVE = {
   doubleJumpMinSpeed: 6,
   doubleJumpDelay: 0.18, // can't double jump this soon after leaving the ground / first jump
   doubleJumpGroundBuffer: 0.7, // falling & this close to the ground → the press is saved as a landing jump instead
-  coyoteTime: 0.12,
-  jumpBuffer: 0.14,
+  coyoteTime: 0.14,
+  jumpBuffer: 0.16,
+  slideJumpBoost: 1.1, // multiplier on horizontal speed when you jump out of a slide (rewards slide → jump chains)
+  slideJumpMaxSpeed: 18, // ...but never pushes you past this (a boost still never *reduces* speed you already had)
+  doubleJumpBurst: 2.2, // m/s added along your input direction on a double jump (feels like a thrust, not just a hop)
+  doubleJumpBurstCap: 14, // burst can't take horizontal speed above max(this, speed you already had)
 
   // floor slide
   slideStartSpeed: 5.5,
@@ -108,6 +112,8 @@ export const MOVE = {
   wallIntoDot: 0.25, // input·(-normal) needed for "pressing toward wall"
   wallRunMinSpeed: 5.5,
   wallRunSpeed: 9,
+  wallRunAccel: 3.5, // m/s² gained while running along a wall → long runs build speed
+  wallRunMaxSpeed: 13, // (speed you carried in above this is kept, never cut)
   wallRunGravityScale: 0.12,
   wallRunMaxDuration: 1.8,
   wallRunStickSpeed: 2,
@@ -141,6 +147,32 @@ export const CAMERA = {
   slideRollDeg: 2.5,
   bobAmount: 0.035, // vertical eye bob while running
   bobFreq: 0.62, // cycles per meter
+  swayAmount: 0.03, // side-to-side eye sway while running (m), at half the bob frequency (left foot / right foot)
+  swayRollDeg: 0.5, // tiny roll that follows the sway
+
+  // speed shake: low-amplitude noise on pitch/roll that fades in with speed (scaled per state below)
+  shakeDeg: 0.28,
+  shakeStartSpeed: 9,
+  shakeFullSpeed: 22,
+  shakeStateMult: { grounded: 0.35, airborne: 0.8, sliding: 1.3, wallRunning: 1.4, wallSliding: 0.6, grappling: 1.1 },
+
+  // landing also kicks the view down (pitch only — your aim, ps.pitch, is never touched)
+  landPitchPerSpeed: 0.0032, // radians per m/s of impact
+  landPitchMax: 0.05,
+
+  // one-shot impulses, fired by movement events and decaying back to 0. fov = degrees added, pitch = degrees (+ = look up),
+  // roll = degrees, signed by which side the event happened on (wall jump rolls you the way you push off).
+  kicks: {
+    jump: { fov: 1.5, pitch: 0.4 },
+    doubleJump: { fov: 7, pitch: 1.1 },
+    wallJump: { fov: 4.5, pitch: 0.8, roll: 4 },
+    slide: { fov: 3.5, pitch: -0.6 },
+    wallRun: { fov: 3, pitch: 0, roll: 2 },
+    grapple: { fov: 7, pitch: 0.8 },
+  },
+  fovKickRecover: 6,
+  pitchKickRecover: 9,
+  rollKickRecover: 7,
 }
 
 export const GAMEPLAY = { maxHealth: 100, healthPickupAmount: 25 }

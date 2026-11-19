@@ -2,7 +2,7 @@
 // One call to stepPlayer() = one fixed step. All state transitions are in resolveState().
 import * as THREE from 'three'
 import { MOVE, PLAYER, DOUBLE_JUMP } from '../config/gameConfig'
-import { consumeDoubleJump, spendDoubleJumpCharge, tickDoubleJumpCharges, resetDoubleJump, onFloorContactStart, onLeaveGround, lookDirection } from './state'
+import { consumeDoubleJump, spendDoubleJumpCharge, tickDoubleJumpCharges, resetDoubleJump, onFloorContactStart, onLeaveGround, lookDirection, fxPush } from './state'
 import { findGrappleTarget } from './grapple'
 
 export const STATES = Object.freeze({
@@ -102,6 +102,16 @@ function applyGravity(ps, scale, dt) {
 
 // ── jumping ──────────────────────────────────────────────────────────────────
 function groundJump(ps, c) {
+  if (ps.state === S.SLIDING) {
+    // slide → jump: keep the slide's speed and add a little (capped; never reduces speed you already had)
+    const sp = Math.hypot(ps.vel.x, ps.vel.z)
+    if (sp > 1e-3) {
+      const k = Math.max(sp, Math.min(sp * MOVE.slideJumpBoost, MOVE.slideJumpMaxSpeed)) / sp
+      ps.vel.x *= k
+      ps.vel.z *= k
+    }
+  }
+  fxPush(ps, 'jump')
   ps.vel.y = MOVE.jumpSpeed // normal jump: does NOT touch canDoubleJump
   ps.jumpCut = true
   ps.jumpedAt = ps.time
@@ -127,7 +137,17 @@ function doubleJump(ps, c) {
       ps.vel.x *= c.hSpeed / after
       ps.vel.z *= c.hSpeed / after
     }
+    // thrust along the input direction, capped so it can't run away (and never cuts speed you came in with)
+    ps.vel.x += _wish.x * MOVE.doubleJumpBurst * c.wishMag
+    ps.vel.z += _wish.z * MOVE.doubleJumpBurst * c.wishMag
+    const burstCap = Math.max(c.hSpeed, MOVE.doubleJumpBurstCap)
+    const sp = Math.hypot(ps.vel.x, ps.vel.z)
+    if (sp > burstCap) {
+      ps.vel.x *= burstCap / sp
+      ps.vel.z *= burstCap / sp
+    }
   }
+  fxPush(ps, 'doubleJump')
   ps.jumpBuffer = 0
   c.doubleJumped = true
 }
@@ -139,6 +159,7 @@ function wallJump(ps, c) {
   ps.vel.x = ps.vel.x * MOVE.wallJumpKeep + n.x * MOVE.wallJumpAway
   ps.vel.z = ps.vel.z * MOVE.wallJumpKeep + n.z * MOVE.wallJumpAway
   ps.vel.y = MOVE.wallJumpUp
+  fxPush(ps, 'wallJump', n.x * Math.cos(ps.yaw) - n.z * Math.sin(ps.yaw)) // n · camera-right
   ps.jumpCut = false
   ps.wallLockUntil = ps.time + MOVE.wallLockTime
   ps.wallRunExhausted = false
@@ -199,14 +220,18 @@ const ENTER = {
     const k = target / c.hSpeed
     ps.vel.x *= k
     ps.vel.z *= k
+    fxPush(ps, 'slide')
   },
-  [S.WALL_RUNNING]: (ps) => {
+  [S.WALL_RUNNING]: (ps, c) => {
     ps.wallRunTime = 0
+    const n = c.wall.normal
+    fxPush(ps, 'wallRun', n.x * Math.cos(ps.yaw) - n.z * Math.sin(ps.yaw))
     ps.vel.y = Math.max(ps.vel.y, MOVE.wallRunEntryLift)
     if (DOUBLE_JUMP.resetOnWallRun) resetDoubleJump(ps, 'wall-run')
   },
   [S.GRAPPLING]: (ps) => {
     ps.coyote = 0
+    fxPush(ps, 'grapple')
   },
 }
 const EXIT = {
@@ -283,7 +308,9 @@ const RUN = {
     }
     along = Math.max(0, along) // speed we carry in the (possibly new) direction
     const base = ps.wallRunTime === 0 ? c.hSpeed : Math.max(along, c.hSpeed * 0.8)
-    const speed = Math.max(base, MOVE.wallRunSpeed)
+    let speed = Math.max(base, MOVE.wallRunSpeed)
+    // build speed along the wall (up to a cap; speed carried in above the cap is kept)
+    speed = Math.min(speed + MOVE.wallRunAccel * dt, Math.max(speed, MOVE.wallRunMaxSpeed))
     ps.vel.x = _tan.x * speed - n.x * MOVE.wallRunStickSpeed
     ps.vel.z = _tan.z * speed - n.z * MOVE.wallRunStickSpeed
     applyGravity(ps, MOVE.wallRunGravityScale, dt)

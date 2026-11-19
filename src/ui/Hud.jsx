@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../game/store'
 import { player } from '../player/state'
 import { DOUBLE_JUMP, CONTROLS } from '../config/gameConfig'
@@ -9,11 +9,47 @@ const overlay = { position: 'fixed', pointerEvents: 'none', fontFamily: 'ui-mono
 export function Hud() {
   return (
     <>
+      <SpeedLines />
       <Crosshair />
       <Stats />
       <DoubleJumpCharges />
       <DebugHud />
       <LockPrompt />
+    </>
+  )
+}
+
+// Radial speed streaks at the screen edges that fade in with total speed (falls count too). Updates a ref straight from the
+// animation frame, so there are no React re-renders. Tune with SPEED_LINES.
+const SPEED_LINES = { startSpeed: 13, fullSpeed: 26, maxOpacity: 0.55 }
+const STREAKS = 'repeating-conic-gradient(from 0deg, rgba(255,255,255,0) 0deg, rgba(255,255,255,0) 2.1deg, rgba(255,255,255,0.9) 2.4deg, rgba(255,255,255,0) 2.9deg, rgba(255,255,255,0) 4.6deg, rgba(255,255,255,0.6) 4.8deg, rgba(255,255,255,0) 5.1deg, rgba(255,255,255,0) 7.3deg)'
+const CLEAR_CENTER = 'radial-gradient(ellipse at center, transparent 38%, rgba(0,0,0,0.25) 55%, #000 85%)'
+
+function SpeedLines() {
+  const ref = useRef(null)
+  useEffect(() => {
+    let id
+    let smooth = 0
+    let last = performance.now()
+    const loop = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000)
+      last = now
+      const v = player.vel
+      const speed = Math.hypot(v.x, v.y, v.z)
+      const target = Math.min(1, Math.max(0, (speed - SPEED_LINES.startSpeed) / (SPEED_LINES.fullSpeed - SPEED_LINES.startSpeed)))
+      smooth += (target - smooth) * (1 - Math.exp(-5 * dt))
+      if (ref.current) ref.current.style.opacity = String(smooth * SPEED_LINES.maxOpacity)
+      id = requestAnimationFrame(loop)
+    }
+    id = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(id)
+  }, [])
+  return (
+    <>
+      <style>{`@keyframes sl-flicker { 0% { transform: rotate(0deg) scale(1.15) } 25% { transform: rotate(3.1deg) scale(1.2) } 50% { transform: rotate(-1.7deg) scale(1.15) } 75% { transform: rotate(2.4deg) scale(1.22) } 100% { transform: rotate(0deg) scale(1.15) } }`}</style>
+      <div ref={ref} style={{ ...overlay, inset: 0, overflow: 'hidden', opacity: 0, mixBlendMode: 'screen', WebkitMaskImage: CLEAR_CENTER, maskImage: CLEAR_CENTER }}>
+        <div style={{ position: 'absolute', inset: '-20%', background: STREAKS, animation: 'sl-flicker 0.5s steps(4, end) infinite' }} />
+      </div>
     </>
   )
 }
@@ -86,7 +122,7 @@ function DoubleJumpCharges() {
 
   return (
     <div style={{ ...overlay, right: 24, bottom: 24, width: 92, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '10px 8px 8px',
-      borderRadius: 8, background: 'linear-gradient(180deg, rgba(14,16,32,0.02), rgba(14,16,32,0.05))', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+      borderRadius: 8, background: 'linear-gradient(180deg, rgba(14,16,32,0.02), rgba(14,16,32,0.05))'}}>
       {/* charge badge */}
       <div style={{ width: 28, height: 28, borderRadius: '50%', background: empty ? '#3a2a30' : SLOT.paper, color: empty ? SLOT.danger : SLOT.ink,
         display: 'grid', placeItems: 'center', fontFamily: 'system-ui, sans-serif', fontWeight: 800, fontSize: 17, lineHeight: 1,

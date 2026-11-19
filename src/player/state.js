@@ -45,8 +45,9 @@ export function createPlayerState() {
     aimedGrapple: null, // name of the point that would fire right now (HUD)
     grappleStatus: {}, // point name → 'target' | 'near' | 'far' (HUD / point colors)
 
-    // one-shot for the camera
+    // one-shots for the camera (render side consumes + clears them)
     landImpact: 0,
+    fxEvents: [], // [{ type: 'doubleJump' | 'wallJump' | ..., side: -1..1 }]
   }
 }
 
@@ -61,6 +62,10 @@ export function resetDoubleJump(ps, reason = 'manual') {
 export function consumeDoubleJump(ps) {
   ps.canDoubleJump = false
   ps.djCharges = Math.max(0, ps.djCharges - 1) // from full this also starts the recharge timer at 0
+}
+/** Queue a camera impulse (see CAMERA.kicks). Capped so a headless sim that never renders can't grow it forever. */
+export function fxPush(ps, type, side = 0) {
+  if (ps.fxEvents.length < 16) ps.fxEvents.push({ type, side })
 }
 /** Spend one charge WITHOUT touching the per-airtime allowance (used by wall jumps). */
 export function spendDoubleJumpCharge(ps) {
@@ -111,6 +116,7 @@ export function respawnPlayer(ps, point) {
   ps.sprinting = false
   ps.jumpCut = false
   ps.slideCooldownUntil = 0
+  ps.fxEvents.length = 0
   resetDoubleJump(ps, 'respawn')
 }
 
