@@ -67,7 +67,7 @@ function SliderRow({ label, value, min, max, step, onChange, changed, onReset })
 
 // ── tunable config rows (auto-generated from the config objects) ─────────────
 const RANGES = {
-  'OUTLINE.strength': [0, 1, 0.01], 'OUTLINE.width': [1, 10, 1], 'OUTLINE.threshold': [0.002, 0.1, 0.001],
+  'OUTLINE.strength': [0, 1, 0.01], 'OUTLINE.width': [1, 16, 1], 'OUTLINE.minWidth': [1, 8, 1], 'OUTLINE.widthRefDist': [1, 100, 1], 'OUTLINE.threshold': [0.002, 0.1, 0.001],
   'OUTLINE.fadeStart': [0, 300, 1], 'OUTLINE.fadeEnd': [10, 500, 1], 'OUTLINE.shadowLift': [0, 2, 0.01], 'OUTLINE.shadowRange': [0.01, 0.5, 0.005],
   'TOON.saturation': [0, 2, 0.01], 'TOON.steps': [0, 1.5, 0.01],
   'BLOOM.intensity': [0, 4, 0.05], 'BLOOM.threshold': [0, 2, 0.01], 'BLOOM.smoothing': [0, 1, 0.01], 'BLOOM.radius': [0, 1, 0.01],
@@ -284,6 +284,7 @@ function PlayerTab() {
         <DevToggle label="God mode (ignore kill zones, full health)" get={() => dev.god} set={(v) => (dev.god = v)} />
         <DevToggle label="Noclip / fly (WASD + look, Space up, slide-key down, Shift faster)" get={() => dev.noclip} set={(v) => (dev.noclip = v)} />
         <DevToggle label="Infinite double-jump charges" get={() => dev.infiniteCharges} set={(v) => (dev.infiniteCharges = v)} />
+        <DevToggle label="Grapple to anything (any surface you look at, uses grapple.json defaults)" get={() => dev.grappleToAnything} set={(v) => (dev.grappleToAnything = v)} />
         <SliderRow label="noclip speed (m/s)" value={dev.noclipSpeed} min={2} max={80} step={1} onChange={(v) => { dev.noclipSpeed = v; force() }} />
         <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
           <Btn onClick={() => setState({ health: GAMEPLAY.maxHealth })}>Refill health</Btn>

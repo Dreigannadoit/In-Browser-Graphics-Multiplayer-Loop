@@ -32,6 +32,8 @@ export function LiveLook() {
       o.get('uLineColor').value.set(OUTLINE.color)
       o.get('uStrength').value = OUTLINE.enabled ? OUTLINE.strength : 0
       o.get('uWidth').value = OUTLINE.width
+      o.get('uWidthRef').value = OUTLINE.widthRefDist
+      o.get('uMinWidth').value = Math.max(1, OUTLINE.minWidth)
       o.get('uThreshold').value = OUTLINE.threshold
       o.get('uFade').value.set(OUTLINE.fadeStart, OUTLINE.fadeEnd)
       o.get('uShadowColor').value.set(OUTLINE.shadowColor)

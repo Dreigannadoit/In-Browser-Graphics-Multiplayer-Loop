@@ -3,7 +3,7 @@
 import * as THREE from 'three'
 import { MOVE, PLAYER, DOUBLE_JUMP, CAMERA } from '../config/gameConfig'
 import { consumeDoubleJump, spendDoubleJumpCharge, tickDoubleJumpCharges, resetDoubleJump, onFloorContactStart, onLeaveGround, lookDirection, fxPush } from './state'
-import { findGrappleTarget } from './grapple'
+import { findAnyGrappleTarget } from './grapple'
 
 export const STATES = Object.freeze({
   GROUNDED: 'grounded',
@@ -27,10 +27,17 @@ const _steer = new THREE.Vector3()
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 /** Camera-relative horizontal wish direction (unit) written to out. Returns input magnitude 0..1. */
-function wishDirection(ps, inp, out) {
+function wishDirection(ps, inp, out, dt) {
+  // Keys are digital (0 / ±1), so a raw wish vector snaps instantly. Ease the input toward it instead, so changing direction
+  // sweeps through the in-between directions and starting/stopping ramps in. MOVE.inputSmoothing = 1/s (0 = off, raw input).
+  const k = MOVE.inputSmoothing > 0 ? 1 - Math.exp(-MOVE.inputSmoothing * dt) : 1
+  ps.moveSX = (ps.moveSX ?? 0) + (inp.moveX - (ps.moveSX ?? 0)) * k
+  ps.moveSZ = (ps.moveSZ ?? 0) + (inp.moveZ - (ps.moveSZ ?? 0)) * k
+  if (inp.moveX === 0 && Math.abs(ps.moveSX) < 0.03) ps.moveSX = 0
+  if (inp.moveZ === 0 && Math.abs(ps.moveSZ) < 0.03) ps.moveSZ = 0
   const s = Math.sin(ps.yaw)
   const c = Math.cos(ps.yaw)
-  out.set(inp.moveX * c - inp.moveZ * s, 0, -inp.moveX * s - inp.moveZ * c)
+  out.set(ps.moveSX * c - ps.moveSZ * s, 0, -ps.moveSX * s - ps.moveSZ * c)
   const len = out.length()
   if (len < 1e-4) return 0
   out.multiplyScalar(1 / len)
@@ -431,7 +438,7 @@ export function stepPlayer(ps, inp, dt, phys, level) {
   const wall = phys.probeWalls(ps.pos)
   if (wall) ps.lastWall = wall
   const hSpeed = Math.hypot(ps.vel.x, ps.vel.z)
-  const wishMag = wishDirection(ps, inp, _wish)
+  const wishMag = wishDirection(ps, inp, _wish, dt)
   const grounded =
     ground.hit && ground.kind === 'floor' && ground.gap <= MOVE.groundProbeTolerance && ps.vel.y <= MOVE.groundMaxUpVelocity
 
@@ -473,7 +480,7 @@ export function stepPlayer(ps, inp, dt, phys, level) {
   if (ps.state === S.GRAPPLING) {
     ps.grapple.time += dt
   } else if (inp.grapplePressed) {
-    const point = findGrappleTarget(_eye, lookDirection(ps, _look), level.grapplePoints, phys)
+    const point = findAnyGrappleTarget(_eye, lookDirection(ps, _look), level.grapplePoints, phys)
     if (point) {
       ps.grapple = { point, settings: point.settings, time: 0 }
       c.grappleStart = true

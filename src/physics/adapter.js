@@ -93,6 +93,13 @@ export function createPhysicsAdapter({ world, rapier, getBody, getCollider, cont
       return { topY, wallX: pos.x + dx * wall.toi, wallZ: pos.z + dz * wall.toi, normal: wall.normal }
     },
 
+    /** First solid surface along a ray: { point (world), normal, toi } or null. Used by the dev "grapple to anything" aim. */
+    raycast(origin, dir, maxDist) {
+      const h = cast(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, maxDist)
+      if (!h) return null
+      return { toi: h.toi, normal: h.normal, point: new THREE.Vector3(origin.x + dir.x * h.toi, origin.y + dir.y * h.toi, origin.z + dir.z * h.toi) }
+    },
+
     hasLineOfSight(from, to, dist, tolerance = 1) {
       setRay(from.x, from.y, from.z, (to.x - from.x) / dist, (to.y - from.y) / dist, (to.z - from.z) / dist)
       const hit = world.castRay(ray, dist, true, solidsOnly, undefined, undefined, getBody())

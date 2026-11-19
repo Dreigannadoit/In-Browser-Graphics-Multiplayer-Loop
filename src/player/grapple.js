@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import grappleConfig from '../config/grapple.json'
+import { dev } from '../dev/devState'
 
 const _to = new THREE.Vector3()
 
@@ -29,4 +31,27 @@ export function findGrappleTarget(origin, dir, points, phys, status) {
   }
   if (status && best) status[best.name] = 'target'
   return best
+}
+
+/** Name of the temporary anchor made by "grapple to anything" (see dev.grappleToAnything). */
+export const FREE_ANCHOR = '__free__'
+
+/**
+ * Dev option: grapple onto whatever solid surface the crosshair is on. Returns a throwaway point shaped like a map grapple
+ * point ({ name, position, settings }) using the grapple.json defaults (range, speed...), or null if nothing is in range.
+ */
+export function findFreeGrappleTarget(origin, dir, phys) {
+  const settings = { ...grappleConfig.defaults }
+  const hit = phys.raycast(origin, dir, settings.range)
+  if (!hit || hit.toi < 0.5) return null
+  // sit a hair off the surface so the rope/pull aims at open air, not inside the wall
+  const position = hit.point.addScaledVector(hit.normal, 0.1)
+  return { name: FREE_ANCHOR, position, settings }
+}
+
+/** Map point if one is targeted, otherwise (only when the dev toggle is on) whatever the crosshair hits. */
+export function findAnyGrappleTarget(origin, dir, points, phys, status) {
+  const point = findGrappleTarget(origin, dir, points, phys, status)
+  if (point || !dev.grappleToAnything) return point
+  return findFreeGrappleTarget(origin, dir, phys)
 }

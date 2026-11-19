@@ -83,6 +83,8 @@ export default function App() {
             lineColor={OUTLINE.color}
             lineStrength={OUTLINE.enabled ? OUTLINE.strength : 0}
             lineWidth={OUTLINE.width}
+            widthRefDist={OUTLINE.widthRefDist}
+            minWidth={OUTLINE.minWidth}
             edgeThreshold={OUTLINE.threshold}
             fadeStart={OUTLINE.fadeStart}
             fadeEnd={OUTLINE.fadeEnd}

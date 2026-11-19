@@ -13,6 +13,8 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uLineColor;
   uniform float uStrength;
   uniform float uWidth;
+  uniform float uWidthRef;
+  uniform float uMinWidth;
   uniform float uThreshold;
   uniform vec2 uFade;
   uniform vec2 uTexel;
@@ -34,10 +36,14 @@ const fragmentShader = /* glsl */ `
     float c = invDist(uv);
     float dist = 1.0 / c;
 
-    // Line width in WHOLE pixels, thick up close and tapering to 1px with distance. Whole pixels matter: the depth texture is
+    // Line width follows perspective: it scales with 1/distance, so it is uWidth px at uWidthRef metres (or closer) and gets
+    // steadily thinner the farther away the surface is. Width is applied in WHOLE pixels. Whole pixels matter: the depth texture is
     // nearest-filtered, so a fractional offset (e.g. 1.5px) rounds to 1px on one side and 2px on the other, and the "flat surfaces
     // give zero" maths breaks - every floor/wall seen at a glancing angle then lights up with ink, darkest toward the horizon.
-    float w = floor(mix(uWidth, 1.0, smoothstep(uFade.x * 0.3, uFade.y, dist)) + 0.5);
+    // Below 1px we can't draw a thinner line, so the line is drawn at 1px and its ink is faded by the missing coverage instead.
+    float rawW = uWidth * uWidthRef / max(dist, 1e-3);
+    float w = floor(clamp(rawW, uMinWidth, uWidth) + 0.5);
+    float coverage = clamp(rawW / uMinWidth, 0.0, 1.0);
     vec2 o = uTexel * max(w, 1.0);
     float n = invDist(uv + vec2(0.0, o.y));
     float s = invDist(uv - vec2(0.0, o.y));
@@ -53,6 +59,7 @@ const fragmentShader = /* glsl */ `
 
     // lines fade with distance so far geometry doesn't turn into black noise
     edge *= 1.0 - smoothstep(uFade.x, uFade.y, dist);
+    edge *= coverage;
 
     outputColor = vec4(mix(base, uLineColor, edge * uStrength), inputColor.a);
   }
@@ -62,7 +69,9 @@ export class OutlineEffectImpl extends Effect {
   constructor({
     lineColor = '#1b1226', // ink colour
     lineStrength = 1, // 0..1 how solid the ink is
-    lineWidth = 4, // pixels at close range (rounded to whole pixels; tapers to 1px with distance)
+    lineWidth = 8, // max pixels (rounded to whole pixels), used at widthRefDist or closer
+    minWidth = 2, // pixels: thinnest line at long range (whole pixels)
+    widthRefDist = 30, // metres: at this distance or closer the line is full width; beyond it, width shrinks ~1/distance
     edgeThreshold = 0.012, // curvature needed to count as an edge; lower = more lines
     fadeStart = 45, // metres where lines start to fade...
     fadeEnd = 140, // ...and vanish
@@ -76,6 +85,8 @@ export class OutlineEffectImpl extends Effect {
         ['uLineColor', new Uniform(new Color(lineColor))],
         ['uStrength', new Uniform(lineStrength)],
         ['uWidth', new Uniform(lineWidth)],
+        ['uWidthRef', new Uniform(widthRefDist)],
+        ['uMinWidth', new Uniform(Math.max(1, minWidth))],
         ['uThreshold', new Uniform(edgeThreshold)],
         ['uFade', new Uniform(new Vector2(fadeStart, fadeEnd))],
         ['uTexel', new Uniform(new Vector2(1 / 1920, 1 / 1080))],

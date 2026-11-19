@@ -16,6 +16,7 @@ export const dev = {
   noclip: false, // fly through everything
   noclipSpeed: 14,
   infiniteCharges: false,
+  grappleToAnything: false, // grapple onto any solid surface under the crosshair (not just map grapple points)
   timeScale: 1,
   paused: false,
   stepRequests: 0, // "advance one frame" presses while paused
@@ -47,6 +48,7 @@ export function resetCheats() {
   dev.god = false
   dev.noclip = false
   dev.infiniteCharges = false
+  dev.grappleToAnything = false
   dev.timeScale = 1
   dev.paused = false
   dev.stepRequests = 0

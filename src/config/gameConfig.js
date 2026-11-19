@@ -58,19 +58,20 @@ export const DOUBLE_JUMP = {
 
 export const MOVE = {
   gravity: 26, // while rising
-  fallGravityMult: 1.45, // heavier on the way down → snappy, less floaty
+  fallGravityMult: 1.3, // heavier on the way down (lower = floatier/rounder arc)
   apexGravityMult: 0.65, // slight hang near the top of a jump
   apexSpeed: 2, // |vy| below this counts as "apex"
-  jumpCutGravityMult: 2.6, // extra gravity when jump is released early (variable jump height)
+  jumpCutGravityMult: 2.0, // extra gravity when jump is released early (variable jump height)
   maxFallSpeed: 50,
 
   // ground
   walkSpeed: 7,
   sprintSpeed: 11.5,
-  groundAccel: 70, // m/s² toward the wish direction
-  groundTurnFriction: 16, // 1/s — kills velocity that is NOT along the wish direction (crisp direction changes)
+  inputSmoothing: 12, // 1/s — eases WASD input so direction changes sweep instead of snapping (0 = raw input, lower = smoother/slower)
+  groundAccel: 50, // m/s² toward the wish direction
+  groundTurnFriction: 9, // 1/s — kills velocity that is NOT along the wish direction (crisp direction changes)
   groundOverspeedFriction: 4, // 1/s — bleeds speed above the current max (e.g. after a slide) instead of snapping
-  groundFriction: 9, // 1/s (Quake-style, only used with no input)
+  groundFriction: 6, // 1/s (Quake-style, only used with no input)
   stopSpeed: 3,
   groundProbeTolerance: 0.15, // feet within this of a floor → grounded
   groundProbeRange: 1.6, // how far below feet we look (also used as wall-run clearance)
@@ -78,7 +79,7 @@ export const MOVE = {
 
   // air
   airMaxSpeed: 10,
-  airAccel: 42,
+  airAccel: 30,
 
   // jumping
   jumpSpeed: 9.5,
@@ -128,7 +129,7 @@ export const MOVE = {
 
   // wall slide
   wallSlideFallSpeed: 2.5,
-  wallSlideDecel: 40,
+  wallSlideDecel: 24,
 
   // ledge mantle: airborne + pushing into a wall whose top edge is within reach → auto pull-up (rise, then step over)
   mantleMinHeight: 0.45, // ledge top must be at least this far above your feet (lower than this is a normal step / jump)
@@ -149,13 +150,13 @@ export const CAMERA = {
   fovBoost: 16,
   fovStartSpeed: 8,
   fovFullSpeed: 22,
-  fovLerp: 6,
+  fovLerp: 4.5,
   wallRunTiltDeg: 7,
-  tiltLerp: 8,
+  tiltLerp: 6,
   landDipMinImpact: 4,
   landDipPerSpeed: 0.012,
   landDipMax: 0.22,
-  landDipRecover: 9,
+  landDipRecover: 6.5,
   slideEyeDrop: 0.45,
   strafeRollDeg: 1.6,
   slideRollDeg: 2.5,
@@ -165,7 +166,7 @@ export const CAMERA = {
   swayRollDeg: 0.5, // tiny roll that follows the sway
 
   // speed shake: low-amplitude noise on pitch/roll that fades in with speed (scaled per state below)
-  shakeDeg: 0.28,
+  shakeDeg: 0.2,
   shakeStartSpeed: 9,
   shakeFullSpeed: 22,
   shakeStateMult: { grounded: 0.35, airborne: 0.8, sliding: 1.3, wallRunning: 1.4, wallSliding: 0.6, grappling: 1.1 },
@@ -194,9 +195,9 @@ export const CAMERA = {
     recover: 13, // 1/s — how fast the eye catches up
     maxOffset: 0.4, // m — eye never lags more than this
   },
-  fovKickRecover: 6,
-  pitchKickRecover: 9,
-  rollKickRecover: 7,
+  fovKickRecover: 4.5,
+  pitchKickRecover: 6.5,
+  rollKickRecover: 5,
 }
 
 export const GAMEPLAY = { maxHealth: 100, healthPickupAmount: 25 }
@@ -231,7 +232,9 @@ export const OUTLINE = {
   enabled: true,
   color: '#1b1226', // ink colour (a dark purple reads warmer than pure black)
   strength: 1, // 0..1 how solid the ink is
-  width: 4, // line thickness in WHOLE pixels at close range; it tapers to 1px with distance (try 3 for medium, 6 for very chunky)
+  width: 8, // max line thickness in WHOLE pixels, used at widthRefDist or closer (try 3 for medium, 6 for very chunky)
+  minWidth: 2, // pixels: thinnest line at long range (whole pixels, min 1)
+  widthRefDist: 30, // metres: full width at this distance or closer; farther away the line gets thinner (~1/distance), so close things have the thickest outlines
   threshold: 0.012, // how bent a surface must be to get a line; lower = more lines (creases), higher = silhouettes only
   fadeStart: 45, // metres: lines start to fade out...
   fadeEnd: 140, // ...and vanish (stops far geometry turning into noise)

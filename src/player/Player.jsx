@@ -7,7 +7,7 @@ import { createPhysicsAdapter } from '../physics/adapter'
 import { player as ps, respawnPlayer, lookDirection } from './state'
 import { input } from './input'
 import { stepPlayer } from './movement'
-import { findGrappleTarget } from './grapple'
+import { findAnyGrappleTarget, FREE_ANCHOR } from './grapple'
 import { createCameraFx, updateCameraFx } from './cameraEffects'
 import { getState, setState } from '../game/store'
 import { dev, simDt } from '../dev/devState'
@@ -162,9 +162,9 @@ export function Player({ map }) {
     const phys = physRef.current
     if (phys) {
       tmp.eye.set(renderPos.x, renderPos.y + PLAYER.eyeAboveCenter, renderPos.z)
-      const hit = findGrappleTarget(tmp.eye, lookDirection(ps, tmp.look), level.grapplePoints, phys, ps.grappleStatus)
+      const hit = findAnyGrappleTarget(tmp.eye, lookDirection(ps, tmp.look), level.grapplePoints, phys, ps.grappleStatus)
       ps.aimedGrapple = hit ? hit.name : null
-      if (ps.state === 'grappling' && ps.grapple) ps.grappleStatus[ps.grapple.point.name] = 'target' // the point we're attached to stays green
+      if (ps.state === 'grappling' && ps.grapple && ps.grapple.point.name !== FREE_ANCHOR) ps.grappleStatus[ps.grapple.point.name] = 'target' // the point we're attached to stays green
     }
 
     // rope
