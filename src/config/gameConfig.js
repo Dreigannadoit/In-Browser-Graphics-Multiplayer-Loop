@@ -209,3 +209,34 @@ export const BLOOM = {
   smoothing: 0.25, // soft knee above the threshold, so dimmer emissives glow a little
   radius: 0.75, // mip-blur spread
 }
+
+// Cartoon look. LOOK = the overall palette/atmosphere, TOON = stepped (cel) lighting on the map, OUTLINE = ink lines + shadow tint
+// drawn as a post effect (see render/OutlineEffect.js). Toon materials are applied once when the map loads (reload to see TOON changes).
+export const LOOK = {
+  // Gradient sky dome. `horizon` is also the fog colour, so distant geometry melts into the sky instead of ending in a hard dark edge.
+  sky: { top: '#4f9bff', horizon: '#cfe9ff', ground: '#9fc4ee', bands: 0 }, // bands: 0 = smooth, 5 = hard painted stripes
+  fog: { near: 45, far: 240 }, // metres
+  sun: { intensity: 2.3 },
+  hemi: { sky: '#e4f2ff', ground: '#9a86e0', intensity: 1.0 }, // soft fill: sky-blue from above, violet bounce from below
+  toneMapping: 'NEUTRAL', // keeps colours saturated (ACES_FILMIC greys and darkens them). Falls back to ACES_FILMIC if unavailable
+}
+
+export const TOON = {
+  enabled: true,
+  steps: [0.58, 0.82, 1.0], // light ramp, darkest -> brightest. Closer values = softer; [0.5, 1.0] for a hard 2-tone
+  saturation: 1.0, // 1 = untouched map colours
+}
+
+export const OUTLINE = {
+  enabled: true,
+  color: '#1b1226', // ink colour (a dark purple reads warmer than pure black)
+  strength: 1, // 0..1 how solid the ink is
+  width: 4, // line thickness in WHOLE pixels at close range; it tapers to 1px with distance (try 3 for medium, 6 for very chunky)
+  threshold: 0.012, // how bent a surface must be to get a line; lower = more lines (creases), higher = silhouettes only
+  fadeStart: 45, // metres: lines start to fade out...
+  fadeEnd: 140, // ...and vanish (stops far geometry turning into noise)
+  // Shadow tint: raises near-black pixels to a deep colour instead of pure black (the map's dark panels become navy, not holes).
+  shadowColor: '#2b2a7a',
+  shadowLift: 0.6, // 0 = off
+  shadowRange: 0.12, // linear brightness below which the tint applies
+}

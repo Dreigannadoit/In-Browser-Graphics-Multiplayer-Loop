@@ -2,6 +2,8 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { player as ps } from '../player/state'
+import { LOOK } from '../config/gameConfig'
+import { dev } from '../dev/devState'
 
 // Shadow-casting sun that follows the player, so the shadow map's resolution is spent
 // around the player instead of being stretched across the whole map.
@@ -15,6 +17,8 @@ export function Sun() {
 
   useFrame(() => {
     if (!light.current) return
+    light.current.intensity = LOOK.sun.intensity // live-tunable (dev tools)
+    light.current.castShadow = dev.flags.shadows
     target.position.copy(ps.pos)
     light.current.position.copy(ps.pos).add(OFFSET)
     target.updateMatrixWorld()
@@ -26,7 +30,7 @@ export function Sun() {
         ref={light}
         target={target}
         position={[40, 80, 30]}
-        intensity={1.8}
+        intensity={LOOK.sun.intensity}
         castShadow
         shadow-mapSize={[MAP_SIZE, MAP_SIZE]}
         shadow-camera-left={-EXTENT}

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GEO_TYPES } from './geoTypes'
 import { PLAYER, SPAWN_FORWARD } from '../config/gameConfig'
 import grappleConfig from '../config/grapple.json'
+import { applyToon } from '../render/toon'
 
 const CONTAINERS = new Set(['Map', 'Geo', 'Points', 'Triggers'])
 const PICKUP_KINDS = new Set(['Health', 'Coin'])
@@ -157,6 +158,8 @@ export function loadMap(gltf, config = grappleConfig) {
       o.castShadow = o.receiveShadow = true
     }
   })
+
+  applyToon(scene) // cartoon shading (config: TOON)
 
   cache.set(gltf, data)
   return data

@@ -4,6 +4,8 @@ import { GAMEPLAY } from '../config/gameConfig'
 
 let state = {
   debug: true,
+  devUnlocked: false, // set only by dev/devGate.js after the console password check
+  devColliders: false, // dev tools: draw physics colliders
   locked: false,
   health: GAMEPLAY.maxHealth,
   coins: 0,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { RigidBody, CapsuleCollider, useRapier, useBeforePhysicsStep } from '@react-three/rapier'
-import { CONTROLS, PHYSICS, PLAYER, SURFACE, GAMEPLAY } from '../config/gameConfig'
+import { CONTROLS, PHYSICS, PLAYER, SURFACE, GAMEPLAY, DOUBLE_JUMP } from '../config/gameConfig'
 import { createPhysicsAdapter } from '../physics/adapter'
 import { player as ps, respawnPlayer, lookDirection } from './state'
 import { input } from './input'
@@ -10,6 +10,8 @@ import { stepPlayer } from './movement'
 import { findGrappleTarget } from './grapple'
 import { createCameraFx, updateCameraFx } from './cameraEffects'
 import { getState, setState } from '../game/store'
+import { dev, simDt } from '../dev/devState'
+import { noclipStep } from '../dev/noclip'
 
 const FALLBACK_SPAWN = { position: new THREE.Vector3(0, 2, 0), yaw: 0 }
 const randomSpawn = (spawns) => {
@@ -67,15 +69,17 @@ export function Player({ map }) {
       getCollider: () => rbRef.current.collider(0),
       controller,
     })
+    dev.map = map // lets the dev tools list spawns / checkpoints / pickups for teleporting
     respawnPlayer(ps, initial)
     setState({ respawnPoint: null, checkpoint: null, health: GAMEPLAY.maxHealth, coins: 0, collected: new Set() })
 
     return () => {
+      if (dev.map === map) dev.map = null
       detach()
       world.removeCharacterController(controller)
       physRef.current = null
     }
-  }, [world, rapier, camera, gl, initial])
+  }, [world, rapier, camera, gl, initial, map])
 
   const respawn = () => {
     respawnPlayer(ps, getState().respawnPoint ?? randomSpawn(level.spawns))
@@ -92,7 +96,7 @@ export function Player({ map }) {
           : { collected, coins: st.coins + 1 }
       })
     } else if (s.kind === 'KillZone') {
-      respawn()
+      if (!dev.god) respawn()
     } else if (s.kind === 'Checkpoint' && getState().checkpoint !== s.name) {
       setState({ checkpoint: s.name, respawnPoint: { position: s.respawnPosition.clone(), yaw: ps.yaw } })
     }
@@ -105,7 +109,24 @@ export function Player({ map }) {
     if (!rb || !phys) return
     lastStepTime.current = performance.now()
 
-    stepPlayer(ps, input.snapshot(), PHYSICS.timeStep, phys, level)
+    // dev tools: queued teleport, pause / slow-motion, cheats. All of this is a no-op unless dev mode is unlocked.
+    if (dev.pendingTeleport) {
+      respawnPlayer(ps, dev.pendingTeleport)
+      rb.setNextKinematicTranslation(ps.pos)
+      dev.pendingTeleport = null
+      return // the physics step that follows moves the collider there before the next sim step
+    }
+    const dt = simDt(PHYSICS.timeStep)
+    if (dt === 0) return // paused
+    if (dev.infiniteCharges) ps.djCharges = DOUBLE_JUMP.maxCharges
+    if (dev.god && getState().health < GAMEPLAY.maxHealth) setState({ health: GAMEPLAY.maxHealth })
+    if (dev.noclip) {
+      noclipStep(ps, input.snapshot(), dt)
+      rb.setNextKinematicTranslation(ps.pos)
+      return
+    }
+
+    stepPlayer(ps, input.snapshot(), dt, phys, level)
     rb.setNextKinematicTranslation(ps.pos)
 
     for (const s of [...phys.overlappingSensors(ps.pos, hits.current)]) handleSensor(s)
