@@ -1,7 +1,7 @@
 // Movement simulation: pure JS (THREE math only). No React, no Rapier, no DOM.
 // One call to stepPlayer() = one fixed step. All state transitions are in resolveState().
 import * as THREE from 'three'
-import { MOVE, PLAYER, DOUBLE_JUMP } from '../config/gameConfig'
+import { MOVE, PLAYER, DOUBLE_JUMP, CAMERA } from '../config/gameConfig'
 import { consumeDoubleJump, spendDoubleJumpCharge, tickDoubleJumpCharges, resetDoubleJump, onFloorContactStart, onLeaveGround, lookDirection, fxPush } from './state'
 import { findGrappleTarget } from './grapple'
 
@@ -12,8 +12,10 @@ export const STATES = Object.freeze({
   WALL_RUNNING: 'wallRunning',
   WALL_SLIDING: 'wallSliding',
   GRAPPLING: 'grappling',
+  MANTLING: 'mantling',
 })
 const S = STATES
+const CENTER_TO_FEET = PLAYER.halfHeight + PLAYER.radius
 
 const _wish = new THREE.Vector3()
 const _eye = new THREE.Vector3()
@@ -169,6 +171,7 @@ function wallJump(ps, c) {
 
 function handleJump(ps, c, inp) {
   const s = ps.state
+  if (s === S.MANTLING) return // hauling up: the pull-up owns the body
   if (s === S.WALL_RUNNING || s === S.WALL_SLIDING) {
     if (!(inp.jumpPressed || ps.jumpBuffer > 0)) return
     if (DOUBLE_JUMP.wallJumpCostsCharge && ps.djCharges < 1) return // out of charges → no wall jump either
@@ -182,6 +185,24 @@ function handleJump(ps, c, inp) {
   // about to land? keep the press buffered so it becomes a normal jump on touchdown instead of burning the double jump
   if (ps.vel.y <= 0 && c.ground.hit && c.ground.kind === 'floor' && c.ground.gap < MOVE.doubleJumpGroundBuffer) return
   doubleJump(ps, c)
+}
+
+// ── ledge mantle ─────────────────────────────────────────────────────────────
+/** Distance left to travel over the lip (along the mantle direction). */
+function mantleRemaining(ps) {
+  const m = ps.mantle
+  return (m.targetX - ps.pos.x) * m.dirX + (m.targetZ - ps.pos.z) * m.dirZ
+}
+
+/** Is there a grabbable ledge in the direction the player is pushing? (needs phys.probeLedge; silently off without it) */
+function findMantle(ps, c, phys) {
+  if (!phys.probeLedge || c.grounded || c.wishMag < 0.1) return null
+  if (ps.state === S.GRAPPLING || ps.state === S.MANTLING || ps.state === S.WALL_RUNNING) return null
+  if (ps.time < ps.mantleLockUntil || ps.vel.y >= MOVE.mantleMaxUpSpeed) return null
+  const ledge = phys.probeLedge(ps.pos, _wish.x, _wish.z)
+  if (!ledge) return null
+  if (-(_wish.x * ledge.normal.x + _wish.z * ledge.normal.z) < MOVE.mantleIntoDot) return null // must be pushing INTO the ledge
+  return ledge
 }
 
 // ── THE state machine: all transitions are decided here ──────────────────────
@@ -199,6 +220,9 @@ function resolveState(ps, c, inp) {
 
   if (s === S.GRAPPLING) return c.grappleEnded ? (c.grounded ? S.GROUNDED : S.AIRBORNE) : S.GRAPPLING
   if (c.grappleStart) return S.GRAPPLING
+
+  if (s === S.MANTLING) return c.mantleDone ? (c.grounded ? S.GROUNDED : S.AIRBORNE) : S.MANTLING
+  if (c.ledge) return S.MANTLING
 
   if (c.grounded) {
     const keep = s === S.SLIDING ? c.hSpeed > MOVE.slideEndSpeed : c.hSpeed >= MOVE.slideStartSpeed && ps.time >= ps.slideCooldownUntil
@@ -233,10 +257,42 @@ const ENTER = {
     ps.coyote = 0
     fxPush(ps, 'grapple')
   },
+  [S.MANTLING]: (ps, c) => {
+    const l = c.ledge
+    const dirX = -l.normal.x // pull-up direction = straight into the wall face
+    const dirZ = -l.normal.z
+    ps.mantle = {
+      topY: l.topY,
+      dirX,
+      dirZ,
+      targetX: l.wallX + dirX * (PLAYER.radius + 0.12),
+      targetZ: l.wallZ + dirZ * (PLAYER.radius + 0.12),
+      exitSpeed: Math.max(MOVE.mantleExitSpeed, c.hSpeed * MOVE.mantleKeepMomentum),
+      phase: 0, // 0 = rise up the wall face, 1 = step over the lip
+      time: 0,
+      finished: false,
+    }
+    ps.vel.set(0, Math.max(ps.vel.y, 0), 0)
+    ps.jumpCut = false
+    ps.coyote = 0
+    ps.jumpBuffer = 0
+    fxPush(ps, 'mantle')
+    if (DOUBLE_JUMP.resetOnMantle) resetDoubleJump(ps, 'mantle')
+  },
 }
 const EXIT = {
   [S.SLIDING]: (ps) => {
     ps.slideCooldownUntil = ps.time + MOVE.slideCooldown
+  },
+  [S.MANTLING]: (ps) => {
+    const m = ps.mantle
+    if (m?.finished) {
+      // arrive on top with a little forward momentum so you flow into a run instead of stopping dead
+      ps.vel.set(m.dirX * m.exitSpeed, 0, m.dirZ * m.exitSpeed)
+      fxPush(ps, 'mantleTop')
+    }
+    ps.mantle = null
+    ps.mantleLockUntil = ps.time + MOVE.mantleLock
   },
   [S.GRAPPLING]: (ps) => {
     ps.grapple = null // velocity is untouched → momentum carries out of the pull
@@ -324,6 +380,23 @@ const RUN = {
       ps.vel.y = Math.min(-MOVE.wallSlideFallSpeed, ps.vel.y + MOVE.wallSlideDecel * dt)
     }
     airControl(ps, c, dt)
+  },
+
+  [S.MANTLING]: (ps, c, dt) => {
+    const m = ps.mantle
+    m.time += dt
+    if (m.phase === 0) {
+      // rise up the face until the feet clear the lip (never overshoots: speed is limited by the distance left)
+      const need = m.topY + 0.03 - (ps.pos.y - CENTER_TO_FEET)
+      if (need > 0.01) {
+        ps.vel.set(0, Math.min(MOVE.mantleRiseSpeed, need / dt), 0)
+        return
+      }
+      m.phase = 1
+    }
+    // step over the lip onto the ledge
+    const v = Math.min(MOVE.mantleForwardSpeed, Math.max(0, mantleRemaining(ps)) / dt)
+    ps.vel.set(m.dirX * v, 0, m.dirZ * v)
   },
 
   [S.GRAPPLING]: (ps, c, dt, inp) => {
@@ -422,6 +495,14 @@ export function stepPlayer(ps, inp, dt, phys, level) {
 
   // 4. jump actions, then state transition, then per-state velocity
   if (ps.state !== S.GRAPPLING && !c.grappleStart) handleJump(ps, c, inp)
+  if (ps.state === S.MANTLING) {
+    const m = ps.mantle
+    const reached = m.phase === 1 && mantleRemaining(ps) <= 0.02
+    c.mantleDone = reached || m.time > MOVE.mantleMaxDuration
+    m.finished = reached // a timeout is an abort: no exit boost
+  } else if (!c.grappleStart) {
+    c.ledge = findMantle(ps, c, phys) // after handleJump so a jump this tick (vy high) doesn't instantly grab
+  }
   const next = resolveState(ps, c, inp)
   if (next !== ps.state) {
     EXIT[ps.state]?.(ps, c)
@@ -436,6 +517,12 @@ export function stepPlayer(ps, inp, dt, phys, level) {
   const dz = ps.vel.z * dt
   const mv = phys.move(dx, dy, dz)
   ps.pos.add(mv)
+
+  // auto-step snapped us up/down a small ledge on flat ground → tell the camera so the eye eases instead of popping
+  if (c.grounded && (ps.state === S.GROUNDED || ps.state === S.SLIDING) && c.ground.normal.y >= CAMERA.stepSmooth.flatNormalY) {
+    const rise = mv.y // vel.y is 0 on the ground, so any vertical movement is the step
+    if (Math.abs(rise) >= CAMERA.stepSmooth.minRise && Math.abs(rise) <= PLAYER.stepHeight + 0.1) ps.stepPush += rise
+  }
 
   // 6. velocity correction from what we hit (so momentum slides along surfaces instead of stalling)
   if (wall && wall.gap < 0.06) {

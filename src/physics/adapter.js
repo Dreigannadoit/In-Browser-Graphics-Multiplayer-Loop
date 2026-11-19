@@ -69,6 +69,30 @@ export function createPhysicsAdapter({ world, rapier, getBody, getCollider, cont
       return best
     },
 
+    /**
+     * Ledge in front of the player along horizontal direction (dx, dz): a wall at lower-body height whose top is a
+     * walkable floor with room to stand on. Returns { topY (world Y of the ledge surface), wallX, wallZ, normal } or null.
+     */
+    probeLedge(pos, dx, dz) {
+      const feetY = pos.y - CENTER_TO_FEET
+      const reach = PLAYER.radius + MOVE.mantleReach
+      // 1. a wall right in front of the lower body
+      const wall = cast(pos.x, feetY + MOVE.mantleMinHeight * 0.6, pos.z, dx, 0, dz, reach)
+      if (!wall || classifyNormal(wall.normal.y) !== 'wall') return null
+      // 2. the top of it: ray down from just past the wall face, from max grab height
+      const px = pos.x + dx * (wall.toi + 0.2)
+      const pz = pos.z + dz * (wall.toi + 0.2)
+      const topFromY = feetY + MOVE.mantleMaxHeight + 0.05
+      const top = cast(px, topFromY, pz, 0, -1, 0, topFromY - (feetY + MOVE.mantleMinHeight))
+      if (!top || classifyNormal(top.normal.y) !== 'floor') return null
+      const topY = topFromY - top.toi
+      // 3. room to stand: nothing above the ledge, and nothing between us and it at standing height
+      const standH = 2 * (PLAYER.halfHeight + PLAYER.radius)
+      if (cast(px, topY + 0.05, pz, 0, 1, 0, standH - 0.05)) return null
+      if (cast(pos.x, topY + 0.9, pos.z, dx, 0, dz, wall.toi + 0.2 + PLAYER.radius)) return null
+      return { topY, wallX: pos.x + dx * wall.toi, wallZ: pos.z + dz * wall.toi, normal: wall.normal }
+    },
+
     hasLineOfSight(from, to, dist, tolerance = 1) {
       setRay(from.x, from.y, from.z, (to.x - from.x) / dist, (to.y - from.y) / dist, (to.z - from.z) / dist)
       const hit = world.castRay(ray, dist, true, solidsOnly, undefined, undefined, getBody())

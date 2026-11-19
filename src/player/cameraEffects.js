@@ -6,7 +6,7 @@ const DEG = Math.PI / 180
 
 export const createCameraFx = () => ({
   fov: CAMERA.baseFov, roll: 0, dip: 0, slide: 0, strafe: 0, bobPhase: 0, bob: 0, sway: 0, time: 0,
-  kickFov: 0, kickPitch: 0, kickRoll: 0, shake: 0,
+  kickFov: 0, kickPitch: 0, kickRoll: 0, shake: 0, step: 0,
 })
 
 /**
@@ -54,6 +54,12 @@ export function updateCameraFx(fx, ps, dt) {
   ps.landImpact = 0
   fx.dip *= Math.exp(-CAMERA.landDipRecover * dt)
 
+  // step-up smoothing: the body snaps up a ledge instantly, the eye lags below it and eases back
+  const SS = CAMERA.stepSmooth
+  fx.step = Math.max(-SS.maxOffset, Math.min(SS.maxOffset, fx.step - ps.stepPush))
+  ps.stepPush = 0
+  fx.step *= Math.exp(-SS.recover * dt)
+
   // impulses decay back to 0
   fx.kickFov *= Math.exp(-CAMERA.fovKickRecover * dt)
   fx.kickPitch *= Math.exp(-CAMERA.pitchKickRecover * dt)
@@ -78,7 +84,7 @@ export function updateCameraFx(fx, ps, dt) {
   const shakeRoll = (Math.sin(T * 33.1 + 0.6) + Math.sin(T * 21.4 + 2.9) * 0.7) * 0.59 * fx.shake * CAMERA.shakeDeg * DEG
 
   return {
-    eyeOffsetY: -(fx.dip + fx.slide * CAMERA.slideEyeDrop) + fx.bob,
+    eyeOffsetY: -(fx.dip + fx.slide * CAMERA.slideEyeDrop) + fx.bob + fx.step,
     eyeOffsetRight: fx.sway * CAMERA.swayAmount,
     fov: fx.fov + fx.kickFov,
     pitch: fx.kickPitch + shakePitch,

@@ -12,7 +12,7 @@ export function createPlayerState() {
     speed: 0, // horizontal m/s
 
     // state machine
-    state: 'airborne', // grounded | airborne | sliding | wallRunning | wallSliding | grappling
+    state: 'airborne', // grounded | airborne | sliding | wallRunning | wallSliding | grappling | mantling
     grounded: false,
     time: 0,
 
@@ -38,6 +38,8 @@ export function createPlayerState() {
     sprinting: false,
     slideCooldownUntil: 0,
     jumpedAt: -1, // time of last takeoff / jump (double-jump delay)
+    mantle: null, // { topY, dirX, dirZ, targetX, targetZ, carry, phase, time } while mantling
+    mantleLockUntil: 0,
     jumpCut: false, // true while a rising jump may be shortened by releasing the key
 
     // grapple
@@ -47,6 +49,7 @@ export function createPlayerState() {
 
     // one-shots for the camera (render side consumes + clears them)
     landImpact: 0,
+    stepPush: 0, // vertical snap (m) from auto-step this frame; camera consumes it and eases the eye over it
     fxEvents: [], // [{ type: 'doubleJump' | 'wallJump' | ..., side: -1..1 }]
   }
 }
@@ -116,6 +119,9 @@ export function respawnPlayer(ps, point) {
   ps.sprinting = false
   ps.jumpCut = false
   ps.slideCooldownUntil = 0
+  ps.mantle = null
+  ps.mantleLockUntil = 0
+  ps.stepPush = 0
   ps.fxEvents.length = 0
   resetDoubleJump(ps, 'respawn')
 }

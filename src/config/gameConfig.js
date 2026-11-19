@@ -49,9 +49,10 @@ export const DOUBLE_JUMP = {
   resetOnWallJump: false,
   wallJumpCostsCharge: true, // a wall jump spends one charge and is blocked at 0 charges (doesn't touch the per-airtime allowance)
   resetOnWallRun: true, // restore the double jump when a wall run starts
+  resetOnMantle: true, // restore the double jump when you pull up onto a ledge
   // Consumable charges: every double jump costs one charge, regardless of the reset rules above (those only decide WHEN you may
   // double jump; the charge decides IF you can). Charges refill one at a time. Respawning does not refill them.
-  maxCharges: 7,
+  maxCharges: 12,
   rechargeSeconds: 1.5, // time to regain ONE charge (only ticks while below max)
 }
 
@@ -128,6 +129,19 @@ export const MOVE = {
   // wall slide
   wallSlideFallSpeed: 2.5,
   wallSlideDecel: 40,
+
+  // ledge mantle: airborne + pushing into a wall whose top edge is within reach → auto pull-up (rise, then step over)
+  mantleMinHeight: 0.45, // ledge top must be at least this far above your feet (lower than this is a normal step / jump)
+  mantleMaxHeight: 2.0, // ...and at most this far above your feet
+  mantleReach: 0.35, // how far past the capsule edge the wall may be
+  mantleIntoDot: 0.5, // input·(-wallNormal) needed to grab (you have to be pushing into the ledge)
+  mantleMaxUpSpeed: 5, // still rising faster than this → too early to grab (a jump has to peak first)
+  mantleRiseSpeed: 7.5, // m/s up the face of the wall
+  mantleForwardSpeed: 5, // m/s over the lip
+  mantleExitSpeed: 4.5, // horizontal speed handed back on top (never less than mantleKeepMomentum of what you came in with)
+  mantleKeepMomentum: 0.7,
+  mantleLock: 0.25, // after a mantle, can't start another this soon
+  mantleMaxDuration: 0.9, // safety timeout — a blocked mantle gives up
 }
 
 export const CAMERA = {
@@ -169,6 +183,16 @@ export const CAMERA = {
     slide: { fov: 3.5, pitch: -0.6 },
     wallRun: { fov: 3, pitch: 0, roll: 2 },
     grapple: { fov: 7, pitch: 0.8 },
+    mantle: { fov: 2.5, pitch: 1.0 }, // grab: view lifts as you haul up
+    mantleTop: { fov: 1.5, pitch: -1.4 }, // arrive on top: view settles down
+  },
+  // Step-up smoothing: when auto-step snaps the body up/down a small ledge, the eye lags behind and catches up
+  // instead of popping. Only applies on flat floors (so walking up a ramp never triggers it).
+  stepSmooth: {
+    minRise: 0.04, // m — smaller vertical snaps are ignored
+    flatNormalY: 0.995, // floor must be this flat for a snap to count as a step (rules out slopes)
+    recover: 13, // 1/s — how fast the eye catches up
+    maxOffset: 0.4, // m — eye never lags more than this
   },
   fovKickRecover: 6,
   pitchKickRecover: 9,
