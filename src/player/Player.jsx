@@ -23,6 +23,7 @@ const randomSpawn = (spawns) => {
 
 export function Player({ map }) {
   const rbRef = useRef(null)
+  const bodyRef = useRef(null)
   const physRef = useRef(null)
   const { world, rapier } = useRapier()
   const { camera, gl } = useThree()
@@ -121,6 +122,8 @@ export function Player({ map }) {
     const alpha = THREE.MathUtils.clamp((performance.now() - lastStepTime.current) / (PHYSICS.timeStep * 1000), 0, 1)
     renderPos.lerpVectors(ps.prevPos, ps.pos, alpha)
 
+    if (bodyRef.current) bodyRef.current.position.copy(renderPos) // shadow caster follows the smoothed position
+
     const { eyeOffsetY } = updateCameraFx(fx, ps, dt)
     camera.position.set(renderPos.x, renderPos.y + PLAYER.eyeAboveCenter + eyeOffsetY, renderPos.z)
     camera.rotation.set(ps.pitch, ps.yaw, fx.roll)
@@ -157,6 +160,13 @@ export function Player({ map }) {
       <RigidBody ref={rbRef} type="kinematicPosition" colliders={false} position={initial.position.toArray()}>
         <CapsuleCollider args={[PLAYER.halfHeight, PLAYER.radius]} />
       </RigidBody>
+      {/* Invisible body: writes no colour/depth (so it never blocks the first-person camera) but still casts a shadow. */}
+      <group ref={bodyRef}>
+        <mesh castShadow>
+          <capsuleGeometry args={[PLAYER.radius, PLAYER.halfHeight * 2, 8, 16]} />
+          <meshBasicMaterial colorWrite={false} depthWrite={false} />
+        </mesh>
+      </group>
       <primitive object={rope} />
     </>
   )

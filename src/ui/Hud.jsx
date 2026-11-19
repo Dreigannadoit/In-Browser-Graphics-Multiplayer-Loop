@@ -77,9 +77,6 @@ function LockPrompt() {
     <div style={{ ...overlay, inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.45)', fontSize: 20, textAlign: 'center' }}>
       <div>
         Click to play<br />
-        <span style={{ fontSize: 13, opacity: 0.8 }}>
-          WASD move · Space jump / double jump · Ctrl or C slide · E / RMB grapple · F3 debug
-        </span>
       </div>
     </div>
   )

@@ -62,12 +62,12 @@ function Pickup({ pickup }) {
         {pickup.kind === 'Health' ? (
           <mesh>
             <sphereGeometry args={[0.35, 20, 20]} />
-            <meshStandardMaterial color="#ff4d5e" emissive="#aa1020" emissiveIntensity={0.8} />
+            <meshStandardMaterial color="#ff4d5e" emissive="#ff2a3d" emissiveIntensity={2} />
           </mesh>
         ) : (
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.35, 0.35, 0.07, 28]} />
-            <meshStandardMaterial color="#ffd23f" emissive="#b38600" emissiveIntensity={0.8} metalness={0.6} roughness={0.3} />
+            <meshStandardMaterial color="#ffd23f" emissive="#ffb400" emissiveIntensity={1.6} metalness={0.6} roughness={0.3} />
           </mesh>
         )}
       </group>

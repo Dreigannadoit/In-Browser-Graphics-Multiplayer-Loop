@@ -139,3 +139,12 @@ export const CAMERA = {
 }
 
 export const GAMEPLAY = { maxHealth: 100, healthPickupAmount: 25 }
+
+// Post-processing bloom (@react-three/postprocessing). Scene renders in linear HDR, so only pixels brighter than
+// `threshold` glow: emissive materials with emissiveIntensity > ~1 bloom, ordinary lit surfaces and the sky don't.
+export const BLOOM = {
+  intensity: 1.1,
+  threshold: 0.9, // luminance where glow starts
+  smoothing: 0.25, // soft knee above the threshold, so dimmer emissives glow a little
+  radius: 0.75, // mip-blur spread
+}
