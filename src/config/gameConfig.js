@@ -240,6 +240,6 @@ export const OUTLINE = {
   fadeEnd: 140, // ...and vanish (stops far geometry turning into noise)
   // Shadow tint: raises near-black pixels to a deep colour instead of pure black (the map's dark panels become navy, not holes).
   shadowColor: '#2b2a7a',
-  shadowLift: 0.6, // 0 = off
+  shadowLift: 0.3, // 0 = off
   shadowRange: 0.12, // linear brightness below which the tint applies
 }
