@@ -2,9 +2,7 @@
 
 ## Install / run
 ```bash
-npm i three @react-three/fiber @react-three/rapier @react-three/postprocessing postprocessing   # rapier >= 1.3 (needs useBeforePhysicsStep)
-mkdir -p public/maps && cp Demo.glb public/maps/
-# copy ./src over your project's src/ (or merge), keep main.jsx → <App/>
+npm i 
 npm run dev
 ```
 Click the canvas to lock the pointer. WASD, Space (double jump in air), Ctrl/C slide, E or RMB grapple, F3 debug HUD.
