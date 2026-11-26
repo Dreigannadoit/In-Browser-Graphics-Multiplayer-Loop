@@ -67,7 +67,9 @@ function SliderRow({ label, value, min, max, step, onChange, changed, onReset })
 
 // ── tunable config rows (auto-generated from the config objects) ─────────────
 const RANGES = {
-  'OUTLINE.strength': [0, 1, 0.01], 'OUTLINE.width': [1, 16, 1], 'OUTLINE.minWidth': [1, 8, 1], 'OUTLINE.widthRefDist': [1, 100, 1], 'OUTLINE.threshold': [0.002, 0.1, 0.001],
+  'OUTLINE.strength': [0, 1, 0.01], 'OUTLINE.width': [1, 16, 1], 'OUTLINE.maxWidth': [1, 24, 1], 'OUTLINE.widthFalloff': [0, 1.5, 0.05], 'OUTLINE.minWidth': [1, 8, 1], 'OUTLINE.widthRefDist': [1, 100, 0.5], 'OUTLINE.threshold': [0.002, 0.1, 0.001],
+  'OUTLINE.enemy.strength': [0, 1, 0.01], 'OUTLINE.enemy.width': [1, 16, 1], 'OUTLINE.enemy.maxWidth': [1, 24, 1], 'OUTLINE.enemy.minWidth': [1, 8, 1], 'OUTLINE.enemy.threshold': [0.002, 0.2, 0.002],
+  'OUTLINE.point.strength': [0, 1, 0.01], 'OUTLINE.point.width': [1, 16, 1], 'OUTLINE.point.maxWidth': [1, 24, 1], 'OUTLINE.point.minWidth': [1, 8, 1], 'OUTLINE.point.threshold': [0.002, 0.2, 0.002],
   'OUTLINE.fadeStart': [0, 300, 1], 'OUTLINE.fadeEnd': [10, 500, 1], 'OUTLINE.shadowLift': [0, 2, 0.01], 'OUTLINE.shadowRange': [0.01, 0.5, 0.005],
   'TOON.saturation': [0, 2, 0.01], 'TOON.steps': [0, 1.5, 0.01],
   'BLOOM.intensity': [0, 4, 0.05], 'BLOOM.threshold': [0, 2, 0.01], 'BLOOM.smoothing': [0, 1, 0.01], 'BLOOM.radius': [0, 1, 0.01],

@@ -10,6 +10,8 @@ import { stepPlayer } from './movement'
 import { findAnyGrappleTarget, FREE_ANCHOR } from './grapple'
 import { createCameraFx, updateCameraFx } from './cameraEffects'
 import { getState, setState } from '../game/store'
+import { clock } from '../game/clock'
+import { emit } from '../game/events'
 import { dev, simDt } from '../dev/devState'
 import { noclipStep } from '../dev/noclip'
 
@@ -117,9 +119,18 @@ export function Player({ map }) {
       return // the physics step that follows moves the collider there before the next sim step
     }
     const dt = simDt(PHYSICS.timeStep)
+    clock.dt = dt // everything else that must obey pause / slow-motion (enemies…) reads the world clock
+    clock.scale = dt / PHYSICS.timeStep
     if (dt === 0) return // paused
     if (dev.infiniteCharges) ps.djCharges = DOUBLE_JUMP.maxCharges
     if (dev.god && getState().health < GAMEPLAY.maxHealth) setState({ health: GAMEPLAY.maxHealth })
+    if (getState().health <= 0) {
+      // killed (by enemies): back to the last checkpoint with full health, and the arena starts over
+      respawn()
+      setState({ health: GAMEPLAY.maxHealth })
+      emit('playerDied')
+      return
+    }
     if (dev.noclip) {
       noclipStep(ps, input.snapshot(), dt)
       rb.setNextKinematicTranslation(ps.pos)

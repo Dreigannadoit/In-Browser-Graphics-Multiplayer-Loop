@@ -16,8 +16,18 @@ export function parseName(name) {
   return { category: parts[0], type: parts.length > 2 ? parts[1] : null, id: parts[parts.length - 1] }
 }
 
+// Spawn_Enemy_Unarmed_01 → 'unarmed'. A two-part name (Spawn_Enemy_01) means the default kind.
+const enemyKind = (name) => {
+  const parts = name.split('_')
+  return (parts.length > 3 ? parts[2] : 'unarmed').toLowerCase()
+}
 const worldPos = (o) => o.getWorldPosition(new THREE.Vector3())
 const worldQuat = (o) => o.getWorldQuaternion(new THREE.Quaternion())
+// Enemy convention (src/enemies): forward = (sin yaw, 0, cos yaw). Not the same as the player's camera yaw below.
+const enemyYawFromQuat = (q) => {
+  const f = new THREE.Vector3(...SPAWN_FORWARD).applyQuaternion(q)
+  return Math.atan2(f.x, f.z)
+}
 const yawFromQuat = (q) => {
   const f = new THREE.Vector3(...SPAWN_FORWARD).applyQuaternion(q)
   return Math.atan2(-f.x, -f.z) // camera convention: forward = (-sin yaw, 0, -cos yaw)
@@ -69,7 +79,7 @@ export function loadMap(gltf, config = grappleConfig) {
   scene.updateMatrixWorld(true)
 
   const data = {
-    spawns: { player: [], target: [] },
+    spawns: { player: [], target: [], enemies: [] },
     pickups: [],
     grapplePoints: [],
     triggers: [],
@@ -96,6 +106,7 @@ export function loadMap(gltf, config = grappleConfig) {
       const entry = { name, id, position: worldPos(obj), quaternion: worldQuat(obj) }
       if (type === 'Player') data.spawns.player.push({ ...entry, yaw: yawFromQuat(entry.quaternion) })
       else if (type === 'Target') data.spawns.target.push(entry)
+      else if (type === 'Enemy') data.spawns.enemies.push({ ...entry, kind: enemyKind(name), yaw: enemyYawFromQuat(entry.quaternion) })
       else return warn(`unknown Spawn type "${type}" on "${name}"`)
       markers.push(obj)
     },

@@ -8,10 +8,11 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { loadMap } from './map/loadMap'
 import { GameMap } from './map/GameMap'
 import { Player } from './player/Player'
+import { Enemies } from './enemies/Enemies'
 import { Sun } from './map/Sun'
 import { Hud } from './ui/Hud'
 import { useGame } from './game/store'
-import { BLOOM, CAMERA, LOOK, OUTLINE, PHYSICS } from './config/gameConfig'
+import { BLOOM, CAMERA, ENEMIES, LOOK, OUTLINE, PHYSICS } from './config/gameConfig'
 import { Outline } from './render/OutlineEffect'
 import { Sky } from './render/Sky'
 import { LiveLook } from './render/LiveLook'
@@ -52,6 +53,12 @@ function Game({ url }) {
     <>
       <GameMap map={map} />
       <Player map={map} />
+      {/* own Suspense: the enemy FBX files (several MB) must never hold up the map or the player */}
+      {ENEMIES.enabled && (
+        <Suspense fallback={null}>
+          <Enemies map={map} />
+        </Suspense>
+      )}
     </>
   )
 }
@@ -80,17 +87,7 @@ export default function App() {
               fxRefs.outline = e
               touch()
             }}
-            lineColor={OUTLINE.color}
-            lineStrength={OUTLINE.enabled ? OUTLINE.strength : 0}
-            lineWidth={OUTLINE.width}
-            widthRefDist={OUTLINE.widthRefDist}
-            minWidth={OUTLINE.minWidth}
-            edgeThreshold={OUTLINE.threshold}
-            fadeStart={OUTLINE.fadeStart}
-            fadeEnd={OUTLINE.fadeEnd}
-            shadowColor={OUTLINE.shadowColor}
-            shadowLift={OUTLINE.shadowLift}
-            shadowRange={OUTLINE.shadowRange}
+            config={OUTLINE}
           />
           <Bloom
             ref={(e) => {

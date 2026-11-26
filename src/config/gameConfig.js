@@ -186,6 +186,7 @@ export const CAMERA = {
     grapple: { fov: 7, pitch: 0.8 },
     mantle: { fov: 2.5, pitch: 1.0 }, // grab: view lifts as you haul up
     mantleTop: { fov: 1.5, pitch: -1.4 }, // arrive on top: view settles down
+    hit: { fov: 3, pitch: 2.2, roll: 5 }, // an enemy hit lands: view jolts back (roll is signed by which side it came from)
   },
   // Step-up smoothing: when auto-step snaps the body up/down a small ledge, the eye lags behind and catches up
   // instead of popping. Only applies on flat floors (so walking up a ramp never triggers it).
@@ -201,6 +202,92 @@ export const CAMERA = {
 }
 
 export const GAMEPLAY = { maxHealth: 100, healthPickupAmount: 25 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enemies. Global settings first, then one entry per enemy kind in `types` (src/enemies/*).
+// Distances in metres, times in seconds of WORLD time (they slow down with dev.timeScale / future Superhot time scale).
+//
+// To add a kind (melee, pistol, sniper, machinegun…): copy `unarmed`, point `clips` at its FBX files, give it its own `ai`
+// behaviour (src/enemies/brain.js → BEHAVIORS) and, if it carries one, a `weapon` (see the comment on `weapon` below).
+// Map markers pick the kind from their name:  Spawn_Enemy_<Kind>_<ID>  e.g. Spawn_Enemy_Unarmed_01  (kind is case-insensitive).
+// ─────────────────────────────────────────────────────────────────────────────
+export const ENEMIES = {
+  enabled: true,
+  model: '/enemies/superhot_enemy_t_pose.fbx', // skeleton + mesh every enemy is built from (the clips only reuse its bone names)
+  height: 1.8, // the model is rescaled to this height, whatever units the FBX was exported in
+  modelYawOffset: 0, // radians. Enemies running/punching backwards? set Math.PI
+  crossfade: 0.18, // seconds to blend between clips
+  aggroRange: 90, // idle enemies start chasing when the player is this close
+  gravity: 26,
+  maxFallSpeed: 50,
+  fallDespawnBelow: 40, // an enemy this far below the lowest point of the map is removed
+  corpseTime: 4, // seconds before a dead enemy disappears
+  // kinematic character controller (same idea as PLAYER)
+  skin: 0.02,
+  stepHeight: 0.3,
+  stepMinWidth: 0.15,
+  snapDistance: 0.25,
+  // enemies shove each other apart so a crowd doesn't stack into one body
+  separation: { radius: 1.0, speed: 2.5 },
+  // Map has no Spawn_Enemy_* markers? 'targets' = use the Spawn_Target_* markers as stand-ins, 'none' = spawn nothing
+  fallbackSpawn: 'targets',
+
+  types: {
+    unarmed: {
+      ai: 'melee', // behaviour preset (src/enemies/brain.js)
+      health: 100,
+      capsule: { radius: PLAYER.radius, halfHeight: PLAYER.halfHeight }, // collision shape, 1.8 m like the player
+      reactionTime: 0.4, // standing guard for this long before the first charge
+      accel: 30, // m/s²
+      turnRate: 9, // rad/s while chasing
+      stopDistance: 1.0, // stops this far (centre to centre) from the player instead of walking into them
+
+      // Picked once per enemy (weighted), so a group doesn't move in lockstep.
+      // speed = real m/s. refSpeed = the m/s the clip was animated at (measured from the FBX): speed/refSpeed sets the clip speed,
+      // which keeps the feet from sliding. Both clips had root motion in them; it is removed at load, movement comes from here.
+      locomotion: [
+        { clip: 'run', speed: 5.4, refSpeed: 5.9, weight: 3 },
+        { clip: 'jog', speed: 3.4, refSpeed: 2.6, weight: 1 },
+      ],
+
+      attack: {
+        range: 1.6, // starts a punch when the player is this close (centre to centre, horizontal)
+        cooldown: 0.6, // pause after a combo before the next one
+        windupTurnRate: 4, // rad/s the enemy can still track the player during the windup (dodging works because this is low)
+        hitRange: 1.9, // the punch connects if the player is within this at hitTime...
+        hitArc: 75, // ...and within this many degrees of where the enemy faces (half-angle)...
+        hitHeight: 1.4, // ...and within this vertical distance (centre to centre)
+        knockback: 5, // m/s shove on the player
+        // One of these is picked per attack (never the same twice in a row).
+        // hitTime = seconds into the clip when the fist lands (measured from the animation), end = seconds when the clip is cut off
+        // (the originals keep recovering for another second), lunge = metres the enemy steps forward into the punch.
+        moves: [
+          { clip: 'punch1', hitTime: 0.43, end: 1.05, lunge: 0.45, damage: 10 }, // boxing1: lead hand
+          { clip: 'punch2', hitTime: 0.62, end: 1.3, lunge: 0.45, damage: 14 }, // boxing2: hook
+        ],
+      },
+
+      // key → FBX. loop:false = play once. rootMotion:true keeps the clip's own hip travel (default strips it).
+      clips: {
+        idle: { file: '/enemies/unarmed/superhot_enemy_boxing0.fbx' }, // boxing guard, bobbing
+        run: { file: '/enemies/unarmed/superhot_enemy_running.fbx' },
+        jog: { file: '/enemies/unarmed/superhot_enemy_jogging.fbx' },
+        punch1: { file: '/enemies/unarmed/superhot_enemy_boxing1.fbx', loop: false },
+        punch2: { file: '/enemies/unarmed/superhot_enemy_boxing2.fbx', loop: false },
+        // die: { file: '/enemies/unarmed/…_death.fbx', loop: false }, // no death clip yet: dead enemies topple over procedurally
+      },
+
+      // Held item, attached to a bone. Example for later (units are metres, bone-local axes, tune by eye):
+      // weapon: { bone: 'RightHand', create: () => new THREE.Mesh(/* … */), position: [0, 0.1, 0], rotation: [0, 0, 0] },
+      weapon: null,
+    },
+
+    // melee:      { ai: 'melee',   … clips in /enemies/melee/   (idle, running, standing_attack_horizontal), weapon: katana }
+    // pistol:     { ai: 'ranged',  … clips in /enemies/pistol/  (idle, running, shooting_in_place),          weapon: pistol }
+    // sniper:     { ai: 'ranged',  … long aggro/attack range, stays put and aims }
+    // machinegun: { ai: 'ranged',  … short bursts, fast fire rate }
+  },
+}
 
 // Post-processing bloom (@react-three/postprocessing). Scene renders in linear HDR, so only pixels brighter than
 // `threshold` glow: emissive materials with emissiveIntensity > ~1 bloom, ordinary lit surfaces and the sky don't.
@@ -232,14 +319,26 @@ export const OUTLINE = {
   enabled: true,
   color: '#1b1226', // ink colour (a dark purple reads warmer than pure black)
   strength: 1, // 0..1 how solid the ink is
-  width: 8, // max line thickness in WHOLE pixels, used at widthRefDist or closer (try 3 for medium, 6 for very chunky)
-  minWidth: 2, // pixels: thinnest line at long range (whole pixels, min 1)
-  widthRefDist: 30, // metres: full width at this distance or closer; farther away the line gets thinner (~1/distance), so close things have the thickest outlines
+  // Line thickness follows distance: `width` pixels at widthRefDist metres, thicker when closer (never more than maxWidth),
+  // thinner when farther (never less than minWidth; below that the ink fades instead). widthFalloff is how fast it changes:
+  // 1 = true perspective (twice as far = half as thick), 0.5 = gentler, 0 = same thickness at every distance.
+  width: 5, // pixels at widthRefDist
+  maxWidth: 12, // pixels: thickest line, right up close
+  minWidth: 2, // pixels: thinnest line at long range (min 1)
+  widthRefDist: 10, // metres at which a line is exactly `width` pixels (shared by all kinds)
+  widthFalloff: 0.7,
   threshold: 0.012, // how bent a surface must be to get a line; lower = more lines (creases), higher = silhouettes only
   fadeStart: 45, // metres: lines start to fade out...
   fadeEnd: 140, // ...and vanish (stops far geometry turning into noise)
   // Shadow tint: raises near-black pixels to a deep colour instead of pure black (the map's dark panels become navy, not holes).
   shadowColor: '#2b2a7a',
-  shadowLift: 0.3, // 0 = off
+  shadowLift: 0.6, // 0 = off
   shadowRange: 0.12, // linear brightness below which the tint applies
+
+  // The values above style MAP GEOMETRY (big flat surfaces). Enemies and grapple points get their own ink, because a line tuned for
+  // walls turns a small low-poly character into a black blob (every facet crease inked, thin limbs swallowed) and stacks with the
+  // grapple spheres' own black hull. width/maxWidth/minWidth are pixels (same distance rule as above), threshold is how bent a surface must be to get a line (higher = only
+  // silhouettes and overlaps), enabled:false = no ink at all for that kind.
+  enemy: { enabled: true, color: '#2a0610', strength: 1, width: 2, maxWidth: 6, minWidth: 1, threshold: 0.04 },
+  point: { enabled: true, color: '#05060f', strength: 0.8, width: 2, maxWidth: 4, minWidth: 1, threshold: 0.03 },
 }

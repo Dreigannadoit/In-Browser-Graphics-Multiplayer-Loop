@@ -11,7 +11,13 @@ export function LiveLook() {
   const hemi = useRef()
   const seen = useRef(-1)
 
-  useFrame(() => {
+  useFrame(({ scene, camera }) => {
+    // the outline effect renders the enemy / grapple-point layers itself, so it needs the scene and camera
+    const ol = fxRefs.outline
+    if (ol && ol.idScene !== scene) {
+      ol.idScene = scene
+      ol.idCamera = camera
+    }
     if (seen.current === dev.version) return
     seen.current = dev.version
 
@@ -27,19 +33,7 @@ export function LiveLook() {
       hemi.current.intensity = LOOK.hemi.intensity
     }
 
-    const o = fxRefs.outline?.uniforms
-    if (o) {
-      o.get('uLineColor').value.set(OUTLINE.color)
-      o.get('uStrength').value = OUTLINE.enabled ? OUTLINE.strength : 0
-      o.get('uWidth').value = OUTLINE.width
-      o.get('uWidthRef').value = OUTLINE.widthRefDist
-      o.get('uMinWidth').value = Math.max(1, OUTLINE.minWidth)
-      o.get('uThreshold').value = OUTLINE.threshold
-      o.get('uFade').value.set(OUTLINE.fadeStart, OUTLINE.fadeEnd)
-      o.get('uShadowColor').value.set(OUTLINE.shadowColor)
-      o.get('uShadowLift').value = OUTLINE.shadowLift
-      o.get('uShadowRange').value = OUTLINE.shadowRange
-    }
+    fxRefs.outline?.applyConfig(OUTLINE)
     const b = fxRefs.bloom
     if (b) {
       b.intensity = dev.flags.bloom ? BLOOM.intensity : 0

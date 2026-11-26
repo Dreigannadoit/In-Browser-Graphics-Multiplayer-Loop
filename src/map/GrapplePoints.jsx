@@ -1,7 +1,8 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { player } from '../player/state'
+import { OUTLINE_LAYER } from '../render/layers'
 
 // Visual-only. Markers are stripped from the GLB, so grapple anchors are drawn here.
 const COLORS = {
@@ -29,6 +30,11 @@ function GrapplePoint({ point }) {
   const outline = useRef()
   const lock = useRef()
   const phase = useRef(Math.random() * 6)
+
+  // only the sphere writes depth (hull and rings are overlays), so only it needs the point outline style (OUTLINE.point)
+  useEffect(() => {
+    core.current?.layers.enable(OUTLINE_LAYER.point)
+  }, [])
 
   useFrame(({ clock, camera }) => {
     if (!core.current) return
