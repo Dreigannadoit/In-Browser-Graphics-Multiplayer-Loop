@@ -10,7 +10,7 @@ npm run dev
 Click the canvas to lock the pointer. WASD, Space (double jump in air), Ctrl/C slide, E or RMB grapple, F3 debug HUD.
 
 ## Layout
-```
+``` 
 src/
   config/gameConfig.js   all tuning: controls, surface thresholds, movement, camera, double-jump mode
   config/grapple.json    per-point grapple settings keyed by object name (e.g. "Grapple_05")
