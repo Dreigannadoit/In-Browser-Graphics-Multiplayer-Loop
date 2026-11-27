@@ -19,6 +19,7 @@ import { enemyRegistry, killAllEnemies } from './registry'
  *
  * Dev console helpers (dev builds only):  __enemies.spawn('unarmed')   __enemies.killAll()   __enemies.list()
  */
+
 export function Enemies({ map }) {
   const assets = useEnemyAssets()
   const { world, rapier } = useRapier()
